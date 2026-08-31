@@ -53,9 +53,9 @@ export function ServicesGrid() {
               <Link
                 key={index}
                 href={service.href}
-                className="w-[300px] shrink-0 snap-start bg-white rounded-2xl p-8 shadow-md border border-grey/20 flex flex-col h-full hover:shadow-xl transition-all hover:-translate-y-1 group"
+                className="w-[300px] shrink-0 snap-start bg-white rounded-2xl p-8 shadow-md border border-grey/20 flex flex-col h-full"
               >
-                <div className="bg-navy/5 w-16 h-16 rounded-full flex items-center justify-center text-navy mb-6 group-hover:bg-orange/10 group-hover:text-orange transition-colors self-center">
+                <div className="bg-navy/5 w-16 h-16 rounded-full flex items-center justify-center text-navy mb-6 self-center">
                   <Icon size={32} />
                 </div>
                 <h3 className="text-xl font-bold text-textdark mb-3">
@@ -66,7 +66,7 @@ export function ServicesGrid() {
                 </p>
                 <span
                   aria-hidden="true"
-                  className="text-orange font-semibold inline-flex items-center gap-2 group-hover:gap-3 transition-all"
+                  className="mt-auto w-full inline-flex items-center justify-center gap-2 rounded-lg bg-orange text-white font-semibold py-3 px-5 transition-colors hover:bg-orange/90"
                 >
                   Learn More &rarr;
                 </span>

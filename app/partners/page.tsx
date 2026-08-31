@@ -33,12 +33,12 @@ export default function PartnersPage() {
               <Link
                 key={category.slug}
                 href={`/partners/${category.slug}`}
-                className="group bg-white border border-grey/40 rounded-2xl p-8 transition-shadow hover:shadow-lg"
+                className="bg-white border border-grey/40 rounded-2xl p-8"
               >
                 <div className="bg-navy w-12 h-12 rounded-full flex items-center justify-center text-white mb-4">
                   <Icon size={24} />
                 </div>
-                <h2 className="text-xl font-semibold text-navy group-hover:text-orange">
+                <h2 className="text-xl font-semibold text-navy">
                   {category.label}
                 </h2>
                 <p className="text-textdark/60 mt-2">{category.description}</p>
