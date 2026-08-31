@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
 import { MobileNav } from "@/app/components/MobileNav";
+import { AuthStatus } from "@/app/components/auth/AuthStatus";
 import { siteConfig } from "@/app/lib/site-config";
 
 function MenuIcon() {
@@ -87,9 +88,7 @@ export function Header() {
             <Button href={nav.join.href} variant="primary" className="px-5 py-2.5">
               {nav.join.label}
             </Button>
-            <Button href={nav.login.href} variant="whiteOutline" className="px-5 py-2.5">
-              {nav.login.label}
-            </Button>
+            <AuthStatus className="px-5 py-2.5" />
           </div>
 
           <button

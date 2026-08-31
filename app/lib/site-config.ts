@@ -19,9 +19,9 @@ export const siteConfig = {
     defaultMessage:
       "Hi Go Gro Mobility, I'd like to know more about your services.",
   },
-  email: "hello@gogro.co.za",
+  email: "info@gogromobility.co.za",
   social: {
-    facebook: "#",
+    facebook: "https://web.facebook.com/profile.php?id=61590311141014",
     instagram: "#",
   },
   nav: {

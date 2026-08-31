@@ -39,3 +39,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editors
+.vscode/
+.idea/
+*.sublime-*
+
+# windows
+Thumbs.db
+
+# supabase cli
+.supabase/
+supabase/.temp/
+
+# ai agent / context files
+AGENTS.md
+CLAUDE.md
+project-context.md

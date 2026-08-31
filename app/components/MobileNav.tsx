@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
+import { AuthStatus } from "@/app/components/auth/AuthStatus";
 import { siteConfig } from "@/app/lib/site-config";
 
 function CloseIcon() {
@@ -135,13 +136,7 @@ export function MobileNav({
             >
               {nav.join.label}
             </Button>
-            <Button
-              href={nav.login.href}
-              variant="whiteOutline"
-              className="w-full py-3"
-            >
-              {nav.login.label}
-            </Button>
+            <AuthStatus className="w-full py-3" />
           </div>
         </nav>
       </div>

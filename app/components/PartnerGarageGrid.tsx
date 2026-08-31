@@ -1,35 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MapPin } from "lucide-react";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { EmptyState } from "@/app/components/EmptyState";
-
-interface Garage {
-  id: string;
-  name: string;
-  location: string;
-  active: boolean;
-}
-
-// DUMMY DATA — replace with a Supabase query to the `garages` table
-// (filtered to `active = true`, ordered by `sort_order`) when the backend is wired.
-const DUMMY_GARAGES: Garage[] = [
-  { id: "1", name: "Strand Motors", location: "Strand", active: true },
-  { id: "2", name: "Stellenbosch Auto", location: "Stellenbosch", active: true },
-  { id: "3", name: "Blue Downs Filling Station", location: "Blue Downs", active: true },
-];
+import { GarageModal } from "@/app/components/partners/GarageModal";
+import { fetchGarages, type Garage } from "@/app/components/partners/garages";
 
 export function PartnerGarageGrid() {
   const [loading, setLoading] = useState(true);
   const [garages, setGarages] = useState<Garage[]>([]);
+  const [selected, setSelected] = useState<Garage | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setGarages(DUMMY_GARAGES);
-      setLoading(false);
-    }, 900);
-
-    return () => clearTimeout(timer);
+    let mounted = true;
+    fetchGarages("fuel").then((data) => {
+      if (mounted) {
+        setGarages(data);
+        setLoading(false);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (
@@ -38,7 +31,8 @@ export function PartnerGarageGrid() {
         Our Partner Garages
       </h3>
       <p className="text-textdark/60 mt-2">
-        Fuel credit is available at these active partner garages.
+        Fuel credit is available at these active partner garages. Tap a garage
+        to view its address and location.
       </p>
 
       {loading ? (
@@ -64,7 +58,7 @@ export function PartnerGarageGrid() {
           {garages.map((garage) => (
             <div
               key={garage.id}
-              className="bg-white border border-grey/40 rounded-xl p-6"
+              className="flex flex-col text-left bg-white border border-grey/40 rounded-xl p-6"
             >
               <div className="flex items-start justify-between gap-3">
                 <h4 className="text-lg font-semibold text-navy">
@@ -75,11 +69,23 @@ export function PartnerGarageGrid() {
                   Active
                 </span>
               </div>
-              <p className="text-textdark/60 mt-2">{garage.location}</p>
+              <p className="flex items-center gap-1.5 text-textdark/60 mt-2">
+                <MapPin size={16} className="text-orange shrink-0" />
+                {garage.address ?? "Location available on request"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelected(garage)}
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-orange text-white font-semibold py-3 px-5 transition-colors hover:bg-orange/90"
+              >
+                View details &rarr;
+              </button>
             </div>
           ))}
         </div>
       )}
+
+      <GarageModal garage={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

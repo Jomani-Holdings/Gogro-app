@@ -1,40 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MapPin } from "lucide-react";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { EmptyState } from "@/app/components/EmptyState";
-
-interface Garage {
-  id: string;
-  name: string;
-  location: string;
-}
-
-// DUMMY DATA — replace with a Supabase query to the `garages` table
-// (filtered to `active = true` and the relevant partner type, ordered by `sort_order`).
-const DUMMY_GARAGES: Record<string, Garage[]> = {
-  fuel: [
-    { id: "f1", name: "Strand Motors", location: "Strand" },
-    { id: "f2", name: "Stellenbosch Auto", location: "Stellenbosch" },
-    { id: "f3", name: "Blue Downs Filling Station", location: "Blue Downs" },
-  ],
-  service: [
-    { id: "s1", name: "Cape Town Service Centre", location: "Cape Town" },
-    { id: "s2", name: "Northern Suburbs Auto Repairs", location: "Bellville" },
-  ],
-};
+import { GarageModal } from "@/app/components/partners/GarageModal";
+import { fetchGarages, type Garage } from "@/app/components/partners/garages";
 
 export function PartnerGarageList({ partnertype }: { partnertype: string }) {
   const [loading, setLoading] = useState(true);
   const [garages, setGarages] = useState<Garage[]>([]);
+  const [selected, setSelected] = useState<Garage | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setGarages(DUMMY_GARAGES[partnertype] ?? []);
-      setLoading(false);
-    }, 900);
-
-    return () => clearTimeout(timer);
+    let mounted = true;
+    fetchGarages(partnertype).then((data) => {
+      if (mounted) {
+        setGarages(data);
+        setLoading(false);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
   }, [partnertype]);
 
   return (
@@ -62,14 +50,26 @@ export function PartnerGarageList({ partnertype }: { partnertype: string }) {
           {garages.map((garage) => (
             <div
               key={garage.id}
-              className="bg-white border border-grey/40 rounded-xl p-6"
+              className="flex flex-col text-left bg-white border border-grey/40 rounded-xl p-6"
             >
               <h3 className="text-lg font-semibold text-navy">{garage.name}</h3>
-              <p className="text-textdark/60 mt-2">{garage.location}</p>
+              <p className="flex items-center gap-1.5 text-textdark/60 mt-2">
+                <MapPin size={16} className="text-orange shrink-0" />
+                {garage.address ?? "Location available on request"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelected(garage)}
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-orange text-white font-semibold py-3 px-5 transition-colors hover:bg-orange/90"
+              >
+                View details &rarr;
+              </button>
             </div>
           ))}
         </div>
       )}
+
+      <GarageModal garage={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

@@ -31,52 +31,6 @@ const values = [
   },
 ];
 
-const priorities = [
-  "Strand",
-  "Stellenbosch",
-  "Blue Downs",
-];
-
-const operationalPlan = [
-  {
-    title: "Expand the Fuel Credit Network",
-    description:
-      "Our immediate focus is increasing active drivers across our partner garages.",
-  },
-  {
-    title: "Strengthen Garage Partnerships",
-    description:
-      "Every partner garage should become part of the Go Gro ecosystem.",
-  },
-  {
-    title: "Grow Through Referrals",
-    description:
-      "Our referral programme is one of our biggest growth engines.",
-  },
-  {
-    title: "Improve Driver Value",
-    description:
-      "We want Go Gro to become more valuable the longer someone stays with us.",
-  },
-  {
-    title: "Prepare for Electric Vehicles (EVs)",
-    description:
-      "Although fuel remains our primary business today, we recognize that the future of mobility is changing.",
-  },
-  {
-    title: "Marketing Focus",
-    description: "Our marketing strategy is practical and community-driven.",
-  },
-];
-
-const successIndicators = [
-  "More active drivers using our Fuel Credit Programme",
-  "Strong relationships with every partner garage",
-  "Increased awareness of the Go Gro brand across Cape Town",
-  "Higher driver retention through our rewards programme",
-  "The foundations in place for future EV services and strategic partnerships",
-];
-
 const cultureValues = [
   "Professional",
   "Friendly",
@@ -171,73 +125,6 @@ export default function AboutPage() {
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="bg-navy text-white py-16 md:py-20">
-        <div className="container mx-auto px-6 md:px-12 max-w-5xl">
-          <h2 className="text-3xl md:text-4xl font-bold">
-            Our 4-Month Operational Plan
-          </h2>
-          <p className="text-grey text-lg mt-2">September – December 2026</p>
-          <p className="text-offwhite text-lg mt-4 max-w-3xl">
-            Our objective over the next four months is simple: build a strong
-            driver community, strengthen our garage partnerships, and prepare Go
-            Gro for long-term national growth.
-          </p>
-
-          <div className="grid md:grid-cols-2 gap-6 mt-10">
-            {operationalPlan.map((item, index) => (
-              <div
-                key={item.title}
-                className="bg-navy-dark border border-white/10 rounded-xl p-6"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="flex items-center justify-center h-8 w-8 rounded-full bg-orange text-white font-bold shrink-0">
-                    {index + 1}
-                  </span>
-                  <h3 className="text-lg font-semibold">{item.title}</h3>
-                </div>
-                <p className="text-grey">{item.description}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-10 bg-navy-dark border border-white/10 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-2">
-              Expand the Fuel Credit Network — priority locations
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              {priorities.map((location) => (
-                <span
-                  key={location}
-                  className="bg-white/10 text-offwhite rounded-full px-4 py-2 text-sm font-medium"
-                >
-                  {location}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="container mx-auto px-6 md:px-12 py-16 md:py-20 max-w-5xl">
-        <h2 className="text-3xl md:text-4xl font-bold text-textdark">
-          What Success Looks Like
-        </h2>
-        <p className="text-textdark/70 mt-2">
-          By the end of 2026 we aim to have:
-        </p>
-        <ul className="grid gap-3 mt-6 sm:grid-cols-2">
-          {successIndicators.map((item) => (
-            <li
-              key={item}
-              className="flex items-start gap-3 bg-white border border-grey/40 rounded-lg p-4 text-textdark"
-            >
-              <span className="h-2 w-2 rounded-full bg-orange shrink-0 mt-2" />
-              {item}
-            </li>
-          ))}
-        </ul>
       </section>
 
       <section className="bg-offwhite py-16 md:py-20">
