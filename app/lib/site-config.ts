@@ -37,6 +37,7 @@ export const siteConfig = {
     { label: "Fuel Credit", href: "/services/fuel-credit" },
     { label: "Vehicle Rental", href: "/services/vehicle-rental" },
     { label: "Vehicle Management", href: "/services/vehicle-management" },
+    { label: "Vehicle Repairs", href: "/services/vehicle-repairs" },
   ],
 } as const;
 

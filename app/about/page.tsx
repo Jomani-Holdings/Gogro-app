@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
@@ -24,6 +25,14 @@ export default function AboutPage() {
           vehicles, fuel, maintenance support, technology and services they need
           to keep moving.
         </p>
+        <div className="relative h-14 w-44 mt-6 rounded-md border border-grey/40 bg-white p-2">
+          <Image
+            src="/images/logo/Jomani-Logo.png"
+            alt="Jomani Holdings"
+            fill
+            className="object-contain"
+          />
+        </div>
         <p className="text-lg text-textdark/70 mt-2">
           We support entrepreneurs operating across the mobility economy —
           including e-hailing, logistics, deliveries, tourism and other
