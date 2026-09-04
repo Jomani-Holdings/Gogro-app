@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Fuel, Car, Users } from "lucide-react";
+import { Fuel, Car, Users, Wrench } from "lucide-react";
 
 const services = [
   {
@@ -19,6 +19,12 @@ const services = [
     description: "Your vehicle. Managed. Earning.",
     href: "/services/vehicle-management",
     icon: Users,
+  },
+  {
+    title: "Vehicle Repairs",
+    description: "Request a repair and we'll connect you with trusted mechanics.",
+    href: "/services/vehicle-repairs",
+    icon: Wrench,
   },
 ];
 

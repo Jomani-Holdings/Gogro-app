@@ -11,23 +11,6 @@ function FacebookIcon() {
   );
 }
 
-function InstagramIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      width="20"
-      height="20"
-    >
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-    </svg>
-  );
-}
-
 export function Footer() {
   const currentYear = new Date().getFullYear();
 
@@ -50,6 +33,14 @@ export function Footer() {
             <p className="text-grey text-sm mt-4 italic">
               A venture by Jomani Holdings.
             </p>
+            <div className="relative h-12 w-36 mt-1 rounded-md bg-white p-2">
+              <Image
+                src="/images/logo/Jomani-Logo.png"
+                alt="Jomani Holdings"
+                fill
+                className="object-contain"
+              />
+            </div>
           </div>
 
           {/* Quick Links */}
@@ -110,13 +101,6 @@ export function Footer() {
                 aria-label="Facebook"
               >
                 <FacebookIcon />
-              </a>
-              <a
-                href={siteConfig.social.instagram}
-                className="bg-white/10 p-2 rounded-full hover:bg-orange hover:text-white transition-all"
-                aria-label="Instagram"
-              >
-                <InstagramIcon />
               </a>
               <a
                 href={getWhatsAppLink()}
