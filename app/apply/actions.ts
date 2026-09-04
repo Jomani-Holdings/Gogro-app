@@ -2,8 +2,14 @@
 
 import { waitUntil } from "@vercel/functions";
 import { Resend } from "resend";
+import type { JSONContent } from "@tiptap/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  renderEmailBody,
+  renderEmailSubject,
+  type EmailVariables,
+} from "@/lib/email";
 import {
   stepOneSchema,
   stepTwoSchema,
@@ -19,51 +25,221 @@ function firstError(message: string) {
   return { ok: false as const, message };
 }
 
-async function sendTeamNotification(record: {
+const DEFAULT_FROM = "Go Gro Mobility <onboarding@gogromobility.co.za>";
+
+type EmailTemplateRow = {
+  subject: string;
+  from_address: string | null;
+  reply_to: string | null;
+  body: JSONContent | null;
+};
+
+async function getTemplateBySlug(
+  admin: ReturnType<typeof createAdminClient>,
+  slug: string
+): Promise<EmailTemplateRow | null> {
+  const { data, error } = await admin
+    .from("email_templates")
+    .select("subject, from_address, reply_to, body")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as EmailTemplateRow;
+}
+
+async function sendJoinRequestEmails(record: {
+  id: string;
   full_name: string | null;
   contact_number: string | null;
   email: string | null;
+  id_or_passport_number: string | null;
+  physical_address: string | null;
+  car_make_model_year: string | null;
+  car_registration_number: string | null;
   ehailing_platform: string | null;
+  ehailing_platform_other: string | null;
   driver_type: string | null;
+  garage_name: string | null;
   weekly_credit_band: string | null;
+  heard_about_us: string | null;
   reference_name: string | null;
   deposit_required: boolean | null;
+  created_at: string | null;
 }) {
+  const admin = createAdminClient();
   const apiKey = process.env.RESEND_API_KEY;
-  const to = process.env.TEAM_NOTIFICATION_EMAIL;
+  const adminTo = process.env.TEAM_NOTIFICATION_EMAIL || "info@gogromobility.co.za";
 
-  if (!apiKey || !to) {
-    return { sent: false, reason: "missing RESEND_API_KEY or TEAM_NOTIFICATION_EMAIL" };
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  const reviewLink = baseUrl
+    ? `${baseUrl}/dashboard/admin/applications/${record.id}`
+    : "";
+
+  const submittedAt = record.created_at
+    ? new Date(record.created_at).toLocaleString("en-ZA", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "";
+
+  const variables: EmailVariables = {
+    "driver.name": record.full_name ?? "—",
+    "driver.email": record.email ?? "—",
+    "driver.phone": record.contact_number ?? "—",
+    "driver.idNumber": record.id_or_passport_number ?? "—",
+    "driver.address": record.physical_address ?? "—",
+    "driver.car": record.car_make_model_year ?? "—",
+    "driver.registration": record.car_registration_number ?? "—",
+    "driver.platform":
+      record.ehailing_platform === "Other"
+        ? record.ehailing_platform_other ?? "Other"
+        : record.ehailing_platform ?? "—",
+    "driver.driverType": record.driver_type ?? "—",
+    "driver.garage": record.garage_name ?? "—",
+    "driver.weeklyCreditBand": record.weekly_credit_band ?? "—",
+    "driver.referenceName": record.reference_name ?? "None",
+    "driver.heardAboutUs": record.heard_about_us ?? "—",
+    "driver.depositRequired": record.deposit_required ? "Yes (50%)" : "No",
+    "driver.submittedAt": submittedAt,
+    "admin.reviewLink": reviewLink,
+  };
+
+  const results: Record<string, unknown> = {};
+
+  if (!apiKey) {
+    results.reason = "missing RESEND_API_KEY";
+    return results;
   }
+
+  const resend = new Resend(apiKey);
+
+  // 1. Admin notification.
+  const adminTemplate = await getTemplateBySlug(admin, "join_request_admin");
+  await sendEmail({
+    resend,
+    template: adminTemplate,
+    to: adminTo,
+    subjectFallback: `New driver application: ${record.full_name ?? "—"}`,
+    htmlFallback: fallbackAdminHtml(record, reviewLink, submittedAt),
+    variables,
+  }).then((r) => {
+    results.admin = r;
+  });
+
+  // 2. Driver confirmation.
+  if (record.email) {
+    const driverTemplate = await getTemplateBySlug(admin, "join_request_driver");
+    await sendEmail({
+      resend,
+      template: driverTemplate,
+      to: record.email,
+      subjectFallback: "We received your application",
+      htmlFallback: fallbackDriverHtml(record, submittedAt),
+      variables,
+    }).then((r) => {
+      results.driver = r;
+    });
+  }
+
+  return results;
+}
+
+async function sendEmail(params: {
+  resend: Resend;
+  template: EmailTemplateRow | null;
+  to: string;
+  subjectFallback: string;
+  htmlFallback: string;
+  variables: EmailVariables;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const { resend, template, to, subjectFallback, htmlFallback, variables } =
+    params;
 
   try {
-    const resend = new Resend(apiKey);
-    const lines = [
-      `Name: ${record.full_name ?? "—"}`,
-      `Contact: ${record.contact_number ?? "—"}`,
-      `Email: ${record.email ?? "—"}`,
-      `Platform: ${record.ehailing_platform ?? "—"}`,
-      `Driver type: ${record.driver_type ?? "—"}`,
-      `Weekly credit: ${record.weekly_credit_band ?? "—"}`,
-      `Reference: ${record.reference_name ?? "None"}`,
-      `Deposit required: ${record.deposit_required ? "Yes" : "No"}`,
-    ].join("\n");
+    let subject = subjectFallback;
+    let html = htmlFallback;
+    let text: string | undefined;
 
-    const { error } = await resend.emails.send({
-      from: "Go Gro Mobility <onboarding@gogromobility.co.za>",
-      to: [to],
-      subject: "New Go Gro driver application",
-      text: `A new application was submitted:\n\n${lines}`,
-    });
-
-    if (error) {
-      return { sent: false, reason: error.message };
+    if (template?.body) {
+      const rendered = renderEmailBody(template.body, variables);
+      html = rendered.html;
+      text = rendered.text;
+      subject = renderEmailSubject(template.subject, variables) || subjectFallback;
     }
 
+    const { error } = await resend.emails.send({
+      from: template?.from_address || DEFAULT_FROM,
+      replyTo: template?.reply_to || undefined,
+      to: [to],
+      subject,
+      html,
+      text,
+    });
+
+    if (error) return { sent: false, reason: error.message };
     return { sent: true };
   } catch (err) {
-    return { sent: false, reason: err instanceof Error ? err.message : "unknown" };
+    return {
+      sent: false,
+      reason: err instanceof Error ? err.message : "unknown",
+    };
   }
+}
+
+function fallbackAdminHtml(
+  record: {
+    full_name: string | null;
+    contact_number: string | null;
+    email: string | null;
+    id_or_passport_number: string | null;
+    physical_address: string | null;
+    car_make_model_year: string | null;
+    car_registration_number: string | null;
+    ehailing_platform: string | null;
+    driver_type: string | null;
+    garage_name: string | null;
+    weekly_credit_band: string | null;
+    heard_about_us: string | null;
+    reference_name: string | null;
+    deposit_required: boolean | null;
+  },
+  reviewLink: string,
+  submittedAt: string
+): string {
+  const rows: [string, string | null][] = [
+    ["Name", record.full_name],
+    ["Email", record.email],
+    ["Contact", record.contact_number],
+    ["ID / Passport", record.id_or_passport_number],
+    ["Address", record.physical_address],
+    ["Car", record.car_make_model_year],
+    ["Registration", record.car_registration_number],
+    ["Platform", record.ehailing_platform],
+    ["Driver type", record.driver_type],
+    ["Garage", record.garage_name],
+    ["Weekly credit", record.weekly_credit_band],
+    ["Heard about us", record.heard_about_us],
+    ["Reference", record.reference_name],
+    ["Deposit required", record.deposit_required ? "Yes (50%)" : "No"],
+  ];
+
+  const list = rows
+    .map(([label, value]) => `<li><strong>${label}:</strong> ${value ?? "—"}</li>`)
+    .join("");
+
+  const link = reviewLink
+    ? `<p><a href="${reviewLink}">View application in dashboard</a></p>`
+    : "";
+
+  return `<h2>New driver application</h2><ul>${list}</ul><p>Submitted at: ${submittedAt}</p>${link}`;
+}
+
+function fallbackDriverHtml(
+  record: { full_name: string | null },
+  submittedAt: string
+): string {
+  return `<h2>Application received</h2><p>Hi ${record.full_name ?? "there"}, thanks for applying to join Go Gro Mobility. We have received your details and our team will be in touch shortly.</p><p>Submitted at: ${submittedAt}</p>`;
 }
 
 export async function submitStepOne(data: unknown): Promise<ApplyActionResult> {
@@ -219,20 +395,51 @@ export async function submitStepThree(data: unknown): Promise<ApplyActionResult>
       const { data: record } = await admin
         .from("applications")
         .select(
-          "full_name, contact_number, email, ehailing_platform, driver_type, weekly_credit_band, reference_name, deposit_required"
+          "id, full_name, contact_number, email, id_or_passport_number, physical_address, car_make_model_year, car_registration_number, ehailing_platform, ehailing_platform_other, driver_type, weekly_credit_band, heard_about_us, reference_name, deposit_required, created_at, garages(name)"
         )
         .eq("user_id", user.id)
         .single();
 
-      const result = await sendTeamNotification(record ?? {
-        full_name: null,
-        contact_number: null,
-        email: null,
-        ehailing_platform: null,
-        driver_type: null,
-        weekly_credit_band: null,
-        reference_name: null,
-        deposit_required: null,
+      const row = record as (Record<string, unknown> & {
+        garages?: { name?: string } | null;
+      }) | null;
+
+      const result = await sendJoinRequestEmails({
+        id: row?.id ? String(row.id) : "",
+        full_name: row?.full_name ? String(row.full_name) : null,
+        contact_number: row?.contact_number ? String(row.contact_number) : null,
+        email: row?.email ? String(row.email) : null,
+        id_or_passport_number: row?.id_or_passport_number
+          ? String(row.id_or_passport_number)
+          : null,
+        physical_address: row?.physical_address
+          ? String(row.physical_address)
+          : null,
+        car_make_model_year: row?.car_make_model_year
+          ? String(row.car_make_model_year)
+          : null,
+        car_registration_number: row?.car_registration_number
+          ? String(row.car_registration_number)
+          : null,
+        ehailing_platform: row?.ehailing_platform
+          ? String(row.ehailing_platform)
+          : null,
+        ehailing_platform_other: row?.ehailing_platform_other
+          ? String(row.ehailing_platform_other)
+          : null,
+        driver_type: row?.driver_type ? String(row.driver_type) : null,
+        garage_name: row?.garages?.name ?? null,
+        weekly_credit_band: row?.weekly_credit_band
+          ? String(row.weekly_credit_band)
+          : null,
+        heard_about_us: row?.heard_about_us
+          ? String(row.heard_about_us)
+          : null,
+        reference_name: row?.reference_name ? String(row.reference_name) : null,
+        deposit_required: row?.deposit_required
+          ? Boolean(row.deposit_required)
+          : null,
+        created_at: row?.created_at ? String(row.created_at) : null,
       });
 
       await admin

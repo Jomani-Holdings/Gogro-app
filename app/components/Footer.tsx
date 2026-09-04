@@ -45,9 +45,8 @@ export function Footer() {
               className="h-12 w-12 mb-2"
             />
             <p className="font-semibold text-lg text-orange uppercase tracking-wide">
-              Taking You Further
+              Moving People. Growing Businesses.
             </p>
-            <p className="text-grey text-sm">Fueling growth. Driving futures.</p>
             <p className="text-grey text-sm mt-4 italic">
               A venture by Jomani Holdings.
             </p>
@@ -63,7 +62,7 @@ export function Footer() {
               How It Works
             </Link>
             <Link href="/rewards" className="text-grey hover:text-white transition-colors">
-              Rewards
+              Rewards &amp; Benefits
             </Link>
             <Link href="/apply" className="text-orange hover:text-orange/80 font-semibold transition-colors">
               Apply Now

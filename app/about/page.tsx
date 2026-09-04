@@ -2,85 +2,45 @@ import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
 
-const services = [
-  "Fuel Credit",
-  "Vehicle Rentals",
-  "Driver Rewards Programme",
-  "Vehicle Maintenance & Repair Assistance",
-  "Mobility Business Support",
-];
-
-const values = [
-  {
-    title: "Drivers First",
-    description: "Every decision we make should improve the lives of our drivers.",
-  },
-  {
-    title: "Trust",
-    description:
-      "We build long-term relationships through honesty, transparency and consistency.",
-  },
-  {
-    title: "Innovation",
-    description:
-      "We continuously improve our products and processes to make life easier for our customers.",
-  },
-  {
-    title: "Growth",
-    description: "When our drivers grow, our garages grow, and Go Gro grows.",
-  },
-];
-
-const cultureValues = [
-  "Professional",
-  "Friendly",
-  "Responsive",
-  "Honest",
-  "Solution-focused",
-];
-
 export default function AboutPage() {
   return (
     <>
       <PageHero
         title="About Us"
-        subtitle="A South African mobility company focused on helping eHailing drivers build sustainable businesses."
+        subtitle="A mobility solutions company focused on helping entrepreneurs move, operate and grow."
       />
 
       <section className="container mx-auto px-6 md:px-12 py-16 md:py-20 max-w-5xl">
         <h2 className="text-3xl md:text-4xl font-bold text-textdark">
-          Welcome to Go Gro Mobility
+          About Go Gro Mobility
         </h2>
         <p className="text-lg text-textdark/70 mt-4">
-          Welcome to the Go Gro team!
+          Go Gro Mobility is a mobility solutions company focused on helping
+          entrepreneurs move, operate and grow.
         </p>
         <p className="text-lg text-textdark/70 mt-2">
-          Go Gro Mobility is a South African mobility company focused on helping
-          eHailing drivers build sustainable businesses. We believe drivers need
-          more than just access to fuel—they need a trusted partner that helps
-          them succeed.
+          A venture of Jomani Holdings, Go Gro was created to make the mobility
+          industry more accessible by connecting mobility entrepreneurs with the
+          vehicles, fuel, maintenance support, technology and services they need
+          to keep moving.
         </p>
         <p className="text-lg text-textdark/70 mt-2">
-          Everything we build is designed to reduce financial pressure on
-          drivers while helping them keep their vehicles on the road and earning
-          income. Our long-term vision is to become the leading mobility
-          platform for independent drivers across South Africa.
+          We support entrepreneurs operating across the mobility economy —
+          including e-hailing, logistics, deliveries, tourism and other
+          transport-related businesses.
         </p>
-
-        <h3 className="text-2xl font-semibold text-navy mt-10 mb-4">
-          Today, our services include:
-        </h3>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {services.map((service) => (
-            <li
-              key={service}
-              className="flex items-center gap-3 bg-white border border-grey/40 rounded-lg p-4 text-textdark"
-            >
-              <span className="h-2 w-2 rounded-full bg-orange shrink-0" />
-              {service}
-            </li>
-          ))}
-        </ul>
+        <p className="text-lg text-textdark/70 mt-2">
+          Our approach goes beyond providing individual services. We are
+          building an ecosystem where mobility entrepreneurs can access the
+          tools, support and partnerships they need through one trusted
+          platform.
+        </p>
+        <p className="text-lg text-textdark/70 mt-2">
+          From fuel solutions and vehicle access to repairs, vehicle management
+          and driver benefits, Go Gro is designed to remove some of the everyday
+          barriers that prevent mobility entrepreneurs from growing sustainable
+          businesses.
+        </p>
       </section>
 
       <section className="bg-white py-16 md:py-20">
@@ -91,9 +51,9 @@ export default function AboutPage() {
                 Our Mission
               </h2>
               <p className="text-lg text-textdark/70 mt-4">
-                To make mobility more affordable, accessible and sustainable by
-                providing practical financial and vehicle solutions that help
-                drivers grow their businesses.
+                To empower mobility entrepreneurs by providing accessible,
+                practical and reliable solutions that keep them moving and help
+                their businesses grow.
               </p>
             </div>
             <div>
@@ -101,9 +61,9 @@ export default function AboutPage() {
                 Our Vision
               </h2>
               <p className="text-lg text-textdark/70 mt-4">
-                To build South Africa&apos;s most trusted mobility
-                ecosystem—where drivers can access every service they need
-                through one platform.
+                To build one of South Africa&apos;s leading mobility ecosystems —
+                connecting entrepreneurs, vehicles, fuel partners, service
+                providers and technology through one platform.
               </p>
             </div>
           </div>
@@ -112,45 +72,20 @@ export default function AboutPage() {
 
       <section className="container mx-auto px-6 md:px-12 py-16 md:py-20 max-w-5xl">
         <h2 className="text-3xl md:text-4xl font-bold text-textdark">
-          Our Values
+          Moving People. Growing Businesses.
         </h2>
-        <div className="grid sm:grid-cols-2 gap-6 mt-8">
-          {values.map((value) => (
-            <div
-              key={value.title}
-              className="bg-white border border-grey/40 rounded-xl p-6"
-            >
-              <h3 className="text-xl font-semibold text-navy">{value.title}</h3>
-              <p className="text-textdark/70 mt-2">{value.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="bg-offwhite py-16 md:py-20">
-        <div className="container mx-auto px-6 md:px-12 max-w-5xl">
-          <h2 className="text-3xl md:text-4xl font-bold text-textdark">
-            Our Culture
-          </h2>
-          <p className="text-lg text-textdark/70 mt-4 max-w-3xl">
-            We believe that every interaction matters. Whether speaking to a
-            driver, garage owner or supplier, we aim to be:
-          </p>
-          <div className="flex flex-wrap gap-3 mt-6">
-            {cultureValues.map((value) => (
-              <span
-                key={value}
-                className="bg-white border border-grey/40 text-navy rounded-full px-4 py-2 text-sm font-semibold"
-              >
-                {value}
-              </span>
-            ))}
-          </div>
-          <p className="text-lg text-textdark/70 mt-6 max-w-3xl">
-            We don&apos;t simply provide services—we build lasting
-            relationships.
-          </p>
-        </div>
+        <p className="text-lg text-textdark/70 mt-4">
+          At Go Gro, we believe mobility creates opportunity.
+        </p>
+        <p className="text-lg text-textdark/70 mt-2">
+          Every vehicle on the road can represent an income opportunity, a small
+          business, a livelihood and a path towards greater economic
+          independence.
+        </p>
+        <p className="text-lg text-textdark/70 mt-2">
+          Our role is simple: help mobility entrepreneurs keep moving, earning
+          and growing.
+        </p>
       </section>
 
       <CTASection

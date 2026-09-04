@@ -1,22 +1,4 @@
-import { ClipboardList, BadgeCheck, Car } from "lucide-react";
-
-const steps = [
-  {
-    icon: ClipboardList,
-    title: "Apply",
-    description: "Fill in your details online or chat to us on WhatsApp.",
-  },
-  {
-    icon: BadgeCheck,
-    title: "Get Approved",
-    description: "We review your profile and connect you to the right solution.",
-  },
-  {
-    icon: Car,
-    title: "Drive",
-    description: "Access fuel credit, rentals, or repairs and keep earning.",
-  },
-];
+import { howItWorksSteps } from "@/lib/data/how-it-works";
 
 export function HowItWorks() {
   return (
@@ -27,12 +9,12 @@ export function HowItWorks() {
             How It Works
           </span>
           <h2 className="text-3xl md:text-4xl font-bold text-navy">
-            Three Steps to Keep Moving
+            Four Steps to Keep Moving
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {steps.map((step, index) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {howItWorksSteps.map((step, index) => {
             const Icon = step.icon;
             return (
               <div

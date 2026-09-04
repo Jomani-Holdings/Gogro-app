@@ -1,28 +1,13 @@
 import { PageHero } from "@/app/components/PageHero";
-import { PartnerGarageGrid } from "@/app/components/PartnerGarageGrid";
+import { GarageGrid } from "@/app/components/partners/GarageGrid";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
-import { ClipboardList, BadgeCheck, Car } from "lucide-react";
+import { getGaragesByTypeSlug } from "@/lib/data/garages";
+import { howItWorksSteps } from "@/lib/data/how-it-works";
 
-const steps = [
-  {
-    icon: ClipboardList,
-    title: "Apply",
-    description: "Fill in your details online or chat to us on WhatsApp.",
-  },
-  {
-    icon: BadgeCheck,
-    title: "Get Approved",
-    description: "We review your profile and connect you to the right solution.",
-  },
-  {
-    icon: Car,
-    title: "Drive",
-    description: "Access fuel credit, rentals, or repairs and keep earning.",
-  },
-];
+export default async function HowItWorksPage() {
+  const fuelGarages = await getGaragesByTypeSlug("fuel");
 
-export default function HowItWorksPage() {
   return (
     <>
       <PageHero
@@ -31,8 +16,8 @@ export default function HowItWorksPage() {
       />
 
       <section className="container mx-auto px-6 md:px-12 py-16 md:py-20 max-w-5xl">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {steps.map((step, index) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {howItWorksSteps.map((step, index) => {
             const Icon = step.icon;
             return (
               <div
@@ -51,7 +36,15 @@ export default function HowItWorksPage() {
           })}
         </div>
 
-        <PartnerGarageGrid />
+        <div className="mt-10">
+          <h3 className="text-2xl font-semibold text-textdark">
+            Our Partner Garages
+          </h3>
+          <p className="text-textdark/60 mt-2">
+            Fuel credit is available at these active partner garages.
+          </p>
+          <GarageGrid garages={fuelGarages} />
+        </div>
       </section>
 
       <CTASection

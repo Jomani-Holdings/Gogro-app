@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Inter } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/app/components/Header";
-import { Footer } from "@/app/components/Footer";
-import { WhatsAppFAB } from "@/app/components/WhatsAppFAB";
+import { MarketingShell } from "@/app/components/MarketingShell";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -20,7 +18,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Go Gro Mobility | Mobility Solutions That Move You Forward",
   description:
-    "Fuel credit, vehicle rentals, management and repairs. All in one platform. Built for drivers.",
+    "Helping mobility entrepreneurs move, operate and grow with fuel credit, vehicle rentals and vehicle management.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -29,11 +27,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${poppins.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <WhatsAppFAB />
+      <body className="min-h-full">
+        <MarketingShell>{children}</MarketingShell>
       </body>
     </html>
   );

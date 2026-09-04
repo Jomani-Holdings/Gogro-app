@@ -56,3 +56,6 @@ supabase/.temp/
 AGENTS.md
 CLAUDE.md
 project-context.md
+
+# seed scripts
+scripts/seed-admin.mjs
