@@ -1,60 +1,12 @@
 import Link from "next/link";
-import { Fuel, Car, Users, Wrench } from "lucide-react";
 import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
+import { getServices } from "@/lib/data/services";
+import { resolveIcon } from "@/lib/service-icons";
 
-const services = [
-  {
-    title: "Fuel Credit",
-    description:
-      "Buy fuel on credit at our partner garages. Pay weekly and keep your vehicle on the road.",
-    features: [
-      "Weekly payment cycles",
-      "No upfront fuel costs",
-      "Trusted partner garages",
-    ],
-    href: "/services/fuel-credit",
-    icon: Fuel,
-  },
-  {
-    title: "Vehicle Rental",
-    description:
-      "Affordable rentals for eHailing, business or personal use — road-ready when you are.",
-    features: [
-      "Flexible rental terms",
-      "Road-ready vehicles",
-      "Support when you need it",
-    ],
-    href: "/services/vehicle-rental",
-    icon: Car,
-  },
-  {
-    title: "Vehicle Management",
-    description:
-      "We handle licences, paperwork, insurance and more. You focus on earning.",
-    features: [
-      "Licence & paperwork",
-      "Insurance assistance",
-      "Admin off your plate",
-    ],
-    href: "/services/vehicle-management",
-    icon: Users,
-  },
-  {
-    title: "Vehicle Repairs",
-    description:
-      "Request a repair and we'll connect you with trusted mechanics to keep you moving.",
-    features: [
-      "Trusted mechanics",
-      "Minimise downtime",
-      "Quality-assured work",
-    ],
-    href: "/services/vehicle-repairs",
-    icon: Wrench,
-  },
-];
+export default async function ServicesPage() {
+  const services = await getServices();
 
-export default function ServicesPage() {
   return (
     <>
       <PageHero
@@ -65,18 +17,18 @@ export default function ServicesPage() {
       <section className="container mx-auto px-6 md:px-12 py-16 md:py-20 max-w-5xl">
         <div className="grid gap-6 sm:grid-cols-2 mt-4">
           {services.map((service) => {
-            const Icon = service.icon;
+            const Icon = resolveIcon(service.icon_name);
             return (
               <Link
-                key={service.href}
-                href={service.href}
+                key={service.id}
+                href={`/services/${service.slug}`}
                 className="flex flex-col rounded-2xl border border-grey/40 bg-white p-8"
               >
                 <div className="bg-navy/5 w-16 h-16 rounded-full flex items-center justify-center text-navy mb-6">
                   <Icon size={32} />
                 </div>
                 <h2 className="text-2xl font-semibold text-navy">
-                  {service.title}
+                  {service.name}
                 </h2>
                 <p className="text-textdark/70 mt-3">{service.description}</p>
                 <ul className="flex flex-col gap-2 mt-5 mb-6">

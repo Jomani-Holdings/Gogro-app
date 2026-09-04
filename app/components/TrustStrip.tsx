@@ -4,7 +4,7 @@ const trustItems = [
   { icon: Clock, title: "Convenient", desc: "Everything you need, in one place." },
   { icon: Wallet, title: "Affordable", desc: "Flexible options that fit your journey." },
   { icon: ShieldCheck, title: "Reliable", desc: "Trusted partners. Quality service." },
-  { icon: User, title: "Built for Drivers", desc: "Solutions that keep you moving." },
+  { icon: User, title: "Built for Entrepreneurs", desc: "Solutions that keep you moving." },
 ];
 
 const scrollbarHide =

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { MapPin, Phone, X } from "lucide-react";
-import type { Garage } from "@/app/components/partners/garages";
+import type { Garage } from "@/lib/data/types";
 
 export function GarageModal({
   garage,

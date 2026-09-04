@@ -3,9 +3,12 @@
 import { useCallback, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/ui/Button";
 import { MobileNav } from "@/app/components/MobileNav";
-import { AuthStatus } from "@/app/components/auth/AuthStatus";
+import { ProfileMenu } from "@/app/components/auth/ProfileMenu";
+import { useSession } from "@/app/components/auth/useSession";
+import { createClient } from "@/lib/supabase/client";
 import { siteConfig } from "@/app/lib/site-config";
 
 function MenuIcon() {
@@ -29,6 +32,8 @@ function MenuIcon() {
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { signedIn } = useSession();
+  const router = useRouter();
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
@@ -85,10 +90,29 @@ export function Header() {
           </nav>
 
           <div className="hidden lg:flex items-center gap-3">
-            <Button href={nav.join.href} variant="primary" className="px-5 py-2.5">
-              {nav.join.label}
-            </Button>
-            <AuthStatus className="px-5 py-2.5" />
+            {signedIn ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  const supabase = createClient();
+                  await supabase.auth.signOut();
+                  router.refresh();
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange/60 bg-transparent border border-white text-white hover:bg-orange hover:border-transparent px-5 py-2.5"
+              >
+                Logout
+              </button>
+            ) : (
+              <>
+                <Button href={nav.join.href} variant="primary" className="px-5 py-2.5">
+                  {nav.join.label}
+                </Button>
+                <Button href="/login" variant="whiteOutline" className="px-5 py-2.5">
+                  Login
+                </Button>
+              </>
+            )}
+            <ProfileMenu />
           </div>
 
           <button
