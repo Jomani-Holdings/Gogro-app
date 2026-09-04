@@ -532,6 +532,9 @@ export function ApplyForm({ garages }: { garages: GarageOption[] }) {
               Note: If you don&apos;t have a reference, we will require a 50%
               deposit on your fuel credit to complete your onboarding.
             </p>
+            <p className="text-sm text-textdark/60 mt-2">
+              Referring drivers can unlock free fuel rewards.
+            </p>
           </div>
 
           <div className="flex gap-3">

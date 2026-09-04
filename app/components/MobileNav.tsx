@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
 import { AuthStatus } from "@/app/components/auth/AuthStatus";
+import { ProfileMenuMobile } from "@/app/components/auth/ProfileMenu";
 import { siteConfig } from "@/app/lib/site-config";
 
 function CloseIcon() {
@@ -137,6 +138,7 @@ export function MobileNav({
               {nav.join.label}
             </Button>
             <AuthStatus className="w-full py-3" />
+            <ProfileMenuMobile onClose={onClose} />
           </div>
         </nav>
       </div>

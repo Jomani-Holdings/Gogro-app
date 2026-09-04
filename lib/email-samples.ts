@@ -1,0 +1,18 @@
+export const EMAIL_SAMPLE_VALUES: Record<string, string> = {
+  "driver.name": "Thabo Mokoena",
+  "driver.email": "thabo@example.com",
+  "driver.phone": "+27 82 123 4567",
+  "driver.idNumber": "900101 1234 087",
+  "driver.address": "12 Long Street, Cape Town",
+  "driver.car": "Toyota Corolla 2019",
+  "driver.registration": "CA 123-456",
+  "driver.platform": "Uber",
+  "driver.driverType": "Full Time",
+  "driver.garage": "Fuel Partners — Main Garage",
+  "driver.weeklyCreditBand": "R500 – R1,000",
+  "driver.referenceName": "None",
+  "driver.heardAboutUs": "Social media",
+  "driver.depositRequired": "Yes (50%)",
+  "driver.submittedAt": "02 Sep 2026, 14:30",
+  "admin.reviewLink": "https://gogromobility.co.za/dashboard/admin/applications/abc123",
+};

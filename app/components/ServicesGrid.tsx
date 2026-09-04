@@ -1,32 +1,24 @@
 import Link from "next/link";
-import { Fuel, Car, Users, Wrench } from "lucide-react";
+import { Fuel, Car, Users } from "lucide-react";
 
 const services = [
   {
     title: "Fuel Credit",
-    description: "Buy fuel on credit at our partner garages. Pay weekly. Drive more.",
+    description: "Fuel today. Keep moving. Keep earning.",
     href: "/services/fuel-credit",
     icon: Fuel,
   },
   {
     title: "Vehicle Rental",
-    description: "Affordable rentals for eHailing, business or personal use.",
+    description: "Get a car. Get on the road. Start earning.",
     href: "/services/vehicle-rental",
     icon: Car,
   },
   {
     title: "Vehicle Management",
-    description:
-      "We handle licences, paperwork, insurance and more. You focus on earning.",
+    description: "Your vehicle. Managed. Earning.",
     href: "/services/vehicle-management",
     icon: Users,
-  },
-  {
-    title: "Vehicle Repairs",
-    description:
-      "Request a repair and we'll connect you with trusted mechanics.",
-    href: "/services/vehicle-repairs",
-    icon: Wrench,
   },
 ];
 
@@ -68,7 +60,7 @@ export function ServicesGrid() {
                   aria-hidden="true"
                   className="mt-auto w-full inline-flex items-center justify-center gap-2 rounded-lg bg-orange text-white font-semibold py-3 px-5 transition-colors hover:bg-orange/90"
                 >
-                  Learn More &rarr;
+                  Learn More 
                 </span>
               </Link>
             );
