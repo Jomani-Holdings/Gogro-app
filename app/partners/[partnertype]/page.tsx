@@ -34,7 +34,7 @@ export default async function PartnerTypePage({
         </h2>
         <p className="text-textdark/60 mt-2">
           {garages.length > 0
-            ? "Tap a partner to view its address and location."
+            ? "Tap a partner to view its location."
             : "No partners are available in this category yet."}
         </p>
 
