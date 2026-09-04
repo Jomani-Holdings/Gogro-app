@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapPin, Phone, X } from "lucide-react";
+import { MapPin, X } from "lucide-react";
 import type { Garage } from "@/lib/data/types";
 
 export function GarageModal({
@@ -56,18 +56,6 @@ export function GarageModal({
             <div className="flex items-start gap-3 mt-2">
               <MapPin size={20} className="text-orange shrink-0 mt-0.5" />
               <p className="text-textdark/80">{garage.address}</p>
-            </div>
-          ) : null}
-
-          {garage.phone ? (
-            <div className="flex items-center gap-3 mt-2">
-              <Phone size={20} className="text-orange shrink-0" />
-              <a
-                href={`tel:${garage.phone.replace(/\s/g, "")}`}
-                className="text-textdark/80 hover:text-orange"
-              >
-                {garage.phone}
-              </a>
             </div>
           ) : null}
 

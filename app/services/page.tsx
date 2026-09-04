@@ -5,7 +5,9 @@ import { getServices } from "@/lib/data/services";
 import { resolveIcon } from "@/lib/service-icons";
 
 export default async function ServicesPage() {
-  const services = await getServices();
+  const services = (await getServices()).filter(
+    (service) => service.slug !== "vehicle-repairs"
+  );
 
   return (
     <>
