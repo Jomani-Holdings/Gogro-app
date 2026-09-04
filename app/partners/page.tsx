@@ -33,7 +33,7 @@ export default async function PartnersPage() {
                   href={`/partners/${category.slug}`}
                   className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-orange text-white font-semibold py-3 px-5 transition-colors hover:bg-orange/90"
                 >
-                  View partners &rarr;
+                  View partners
                 </Link>
               </div>
             );

@@ -6,7 +6,7 @@ import { Fuel, Wallet, Wrench } from "lucide-react";
 const benefits = [
   {
     icon: Fuel,
-    title: "Fuel Credit",
+    title: "Fuel Credit and Bonus",
     description:
       "Drivers who maintain a strong payment record can unlock additional fuel credit and free fuel rewards. Free fuel can be earned through consistent, on-time payments and by successfully referring other drivers to the Go Gro platform.",
   },
