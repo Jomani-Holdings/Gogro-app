@@ -12,5 +12,5 @@ export default async function DashboardEntryPage() {
     redirect("/dashboard/admin");
   }
 
-  redirect("/dashboard/driver");
+  redirect("/dashboard/client");
 }

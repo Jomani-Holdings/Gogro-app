@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 export type Profile = {
   id: string;
   user_id: string;
-  role: "driver" | "admin";
+  role: "client" | "admin";
   full_name: string | null;
   email: string | null;
   phone: string | null;
@@ -47,6 +47,6 @@ export async function requireUser(): Promise<User> {
 export async function requireAdmin(): Promise<Profile> {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
-  if (profile.role !== "admin") redirect("/dashboard");
+  if (profile.role !== "admin") redirect("/dashboard/client");
   return profile;
 }

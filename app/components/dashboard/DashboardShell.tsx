@@ -18,6 +18,8 @@ import {
   Mail,
   Home,
   LifeBuoy,
+  ClipboardList,
+  FilePlus,
   type LucideIcon,
 } from "lucide-react";
 import { siteConfig } from "@/app/lib/site-config";
@@ -35,6 +37,8 @@ const iconMap: Record<string, LucideIcon> = {
   Home,
   LifeBuoy,
   Settings,
+  ClipboardList,
+  FilePlus,
 };
 
 export function DashboardShell({
@@ -45,7 +49,7 @@ export function DashboardShell({
   children,
 }: {
   navItems: NavItem[];
-  role: "driver" | "admin";
+  role: "client" | "admin";
   fullName: string | null;
   email: string | null;
   children: React.ReactNode;
@@ -69,7 +73,7 @@ export function DashboardShell({
     return () => window.removeEventListener("keydown", handler);
   }, [mobileOpen]);
 
-  const roleLabel = role === "admin" ? "Admin Console" : "Driver Portal";
+  const roleLabel = role === "admin" ? "Admin Console" : "Client Portal";
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
