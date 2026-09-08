@@ -15,4 +15,10 @@ export const EMAIL_SAMPLE_VALUES: Record<string, string> = {
   "driver.depositRequired": "Yes (50%)",
   "driver.submittedAt": "02 Sep 2026, 14:30",
   "admin.reviewLink": "https://gogromobility.co.za/dashboard/admin/applications/abc123",
+  "client.name": "Thabo Mokoena",
+  "client.email": "thabo@example.com",
+  "client.phone": "+27 82 123 4567",
+  "client.service": "Fuel Credit",
+  "form.name": "Fuel Credit Application",
+  "form.link": "https://gogromobility.co.za/apply/form/abc123?token=00000000-0000-0000-0000-000000000000",
 };

@@ -1,55 +1,37 @@
 import { PageHero } from "@/app/components/PageHero";
-import { ApplyForm, type GarageOption } from "@/app/components/apply/ApplyForm";
-import { createClient } from "@/lib/supabase/server";
+import {
+  ExpressJoinForm,
+  type ServiceOption,
+} from "@/app/components/apply/ExpressJoinForm";
+import { getServices } from "@/lib/data/services";
 
-const FALLBACK_GARAGES: GarageOption[] = [
-  { id: "kraaifontein-astron", name: "Kraaifontein Astron" },
-  { id: "goodwood-astron", name: "Goodwood Astron" },
-  { id: "paarl-bp", name: "Paarl BP" },
-  { id: "atlantis-astron", name: "Atlantis Astron" },
-  { id: "grassy-park-astron", name: "Grassy Park Astron" },
-  { id: "blue-downs-astron", name: "Blue Downs Astron" },
-  { id: "strand-astron", name: "Strand Astron" },
-  { id: "mowbray-astron", name: "Mowbray Astron" },
+const FALLBACK_SERVICES: ServiceOption[] = [
+  { id: "fallback-fuel-credit", name: "Fuel Credit" },
+  { id: "fallback-vehicle-rental", name: "Vehicle Rental" },
+  { id: "fallback-vehicle-management", name: "Vehicle Management" },
 ];
 
-async function getGarages(): Promise<GarageOption[]> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    return FALLBACK_GARAGES;
-  }
-
+async function getServiceOptions(): Promise<ServiceOption[]> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("garages")
-      .select("id, name")
-      .eq("active", true)
-      .order("sort_order");
-
-    if (error || !data || data.length === 0) {
-      return FALLBACK_GARAGES;
-    }
-
-    return data.map((garage) => ({ id: garage.id, name: garage.name }));
+    const services = await getServices();
+    if (services.length === 0) return FALLBACK_SERVICES;
+    return services.map((s) => ({ id: s.id, name: s.name }));
   } catch {
-    return FALLBACK_GARAGES;
+    return FALLBACK_SERVICES;
   }
 }
 
 export default async function ApplyPage() {
-  const garages = await getGarages();
+  const services = await getServiceOptions();
 
   return (
     <>
       <PageHero
         title="Join Go Gro"
-        subtitle="Complete your onboarding in a few quick steps and start accessing fuel credit at our partner garages."
+        subtitle="Tell us a little about yourself and we'll be in touch with the right next steps."
       />
 
-      <ApplyForm garages={garages} />
+      <ExpressJoinForm services={services} />
     </>
   );
 }

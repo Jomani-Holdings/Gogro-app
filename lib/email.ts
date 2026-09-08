@@ -3,14 +3,29 @@ import { renderRichText } from "@/lib/tiptap/render";
 
 export type EmailVariables = Record<string, string | number | boolean>;
 
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export function emailButton(href: string, label: string): string {
+  return `<p style="text-align:center;margin:20px 0;"><a href="${escapeHtml(href)}" style="display:inline-block;padding:12px 24px;background:#F36C21;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">${escapeHtml(label)}</a></p>`;
+}
+
 function renderTemplateString(
   value: string,
-  variables: EmailVariables
+  variables: EmailVariables,
+  escapeVariables = true
 ): string {
   return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, key: string) => {
     const raw = variables[key];
     if (raw === undefined || raw === null) return "—";
-    return String(raw);
+    const str = String(raw);
+    return escapeVariables ? escapeHtml(str) : str;
   });
 }
 
@@ -28,7 +43,7 @@ export function renderEmailSubject(
   subject: string,
   variables: EmailVariables
 ): string {
-  return renderTemplateString(subject ?? "", variables);
+  return renderTemplateString(subject ?? "", variables, false);
 }
 
 function htmlToPlainText(html: string): string {

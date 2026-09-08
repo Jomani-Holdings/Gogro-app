@@ -1,6 +1,16 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { JSONContent } from "@tiptap/core";
-import type { Service, PartnerType, Garage, PageRecord } from "@/lib/data/types";
+import type {
+  Service,
+  PartnerType,
+  Garage,
+  PageRecord,
+  Lead,
+  FormTemplate,
+  FormField,
+  FormSubmission,
+  Communication,
+} from "@/lib/data/types";
 
 export type EmailTemplate = {
   id: string;
@@ -269,29 +279,261 @@ function mapEmailTemplate(row: Record<string, unknown>): EmailTemplate {
   };
 }
 
-export async function getAdminStats() {  const supabase = createAdminClient();
+export async function getAdminStats() {
+  const supabase = createAdminClient();
 
-  const [applications, drivers, garages, services] = await Promise.all([
-    supabase.from("applications").select("status"),
+  const [leads, submissions, clients, garages, services] = await Promise.all([
+    supabase.from("leads").select("status"),
+    supabase.from("form_submissions").select("status"),
     supabase.from("profiles").select("id").neq("role", "admin"),
     supabase.from("garages").select("id").eq("active", true),
     supabase.from("services").select("id").eq("status", "published"),
   ]);
-
-  const statuses = (applications.data ?? []).reduce<Record<string, number>>(
+  const leadStatuses = (leads.data ?? []).reduce<Record<string, number>>(
     (acc, row) => {
-      const status = String(row.status ?? "incomplete");
+      const status = String(row.status ?? "new");
       acc[status] = (acc[status] ?? 0) + 1;
       return acc;
     },
     {}
   );
+  const submissionStatuses = (submissions.data ?? []).reduce<
+    Record<string, number>
+  >((acc, row) => {
+    const status = String(row.status ?? "pending");
+    acc[status] = (acc[status] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return {
-    applications: (applications.data ?? []).length,
-    byStatus: statuses,
-    drivers: (drivers.data ?? []).length,
+    leads: (leads.data ?? []).length,
+    byStatus: leadStatuses,
+    submissions: (submissions.data ?? []).length,
+    bySubmissionStatus: submissionStatuses,
+    drivers: (clients.data ?? []).length,
     garages: (garages.data ?? []).length,
     services: (services.data ?? []).length,
   };
+}
+
+export async function getAdminLeads(): Promise<Lead[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*, services(name)")
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
+    mapLead(row)
+  );
+}
+
+export async function getAdminLead(id: string): Promise<Lead | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*, services(name)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapLead(data as Record<string, unknown>);
+}
+
+function mapLead(row: Record<string, unknown>): Lead {
+  const service = (row.services as { name?: string } | null) ?? null;
+  return {
+    id: String(row.id),
+    user_id: row.user_id ? String(row.user_id) : null,
+    service_id: row.service_id ? String(row.service_id) : null,
+    full_name: String(row.full_name ?? ""),
+    email: String(row.email ?? ""),
+    phone: String(row.phone ?? ""),
+    status: String(row.status ?? "new"),
+    source: row.source ? String(row.source) : null,
+    notes: row.notes ? String(row.notes) : null,
+    assigned_to: row.assigned_to ? String(row.assigned_to) : null,
+    service_name: service?.name ?? null,
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
+export async function getAdminFormTemplates(): Promise<FormTemplate[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("form_templates")
+    .select("*")
+    .order("sort_order");
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
+    mapFormTemplate(row)
+  );
+}
+
+export async function getAdminFormTemplate(
+  id: string
+): Promise<FormTemplate | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("form_templates")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapFormTemplate(data as Record<string, unknown>);
+}
+
+export async function getPublishedFormTemplates(): Promise<FormTemplate[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("form_templates")
+    .select("*")
+    .eq("status", "published")
+    .order("sort_order");
+
+  if (error || !data || data.length === 0) return [];
+  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
+    mapFormTemplate(row)
+  );
+}
+
+function mapFormTemplate(row: Record<string, unknown>): FormTemplate {
+  let fieldSchema: FormField[] = [];
+  if (Array.isArray(row.field_schema)) {
+    fieldSchema = (row.field_schema as Record<string, unknown>[]).map(
+      (f) => ({
+        key: String(f.key ?? ""),
+        type: (f.type as FormField["type"]) ?? "text",
+        label: String(f.label ?? ""),
+        required: Boolean(f.required),
+        options: Array.isArray(f.options)
+          ? (f.options as unknown[]).map(String)
+          : undefined,
+        optionsSource:
+          f.optionsSource === "garages" ? "garages" : undefined,
+        placeholder: f.placeholder ? String(f.placeholder) : undefined,
+        helper: f.helper ? String(f.helper) : undefined,
+        showWhen: (f.showWhen as Record<string, string>) ?? undefined,
+      })
+    );
+  }
+
+  return {
+    id: String(row.id),
+    slug: String(row.slug),
+    service_id: row.service_id ? String(row.service_id) : null,
+    name: String(row.name),
+    status: String(row.status ?? "draft"),
+    intro_content: (row.intro_content as JSONContent) ?? null,
+    field_schema: fieldSchema,
+    terms_content: (row.terms_content as JSONContent) ?? null,
+    confirmation_message: row.confirmation_message
+      ? String(row.confirmation_message)
+      : null,
+    email_template_slug: row.email_template_slug
+      ? String(row.email_template_slug)
+      : null,
+    sort_order: Number(row.sort_order ?? 0),
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
+export async function getAdminSubmissions(): Promise<FormSubmission[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select("*, leads(full_name, email), form_templates(name)")
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
+    mapSubmission(row)
+  );
+}
+
+export async function getSubmissionsForLead(
+  leadId: string
+): Promise<FormSubmission[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select("*, form_templates(name)")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
+    mapSubmission(row)
+  );
+}
+
+export async function getAdminSubmission(
+  id: string
+): Promise<FormSubmission | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select("*, leads(full_name, email), form_templates(name)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapSubmission(data as Record<string, unknown>);
+}
+
+function mapSubmission(row: Record<string, unknown>): FormSubmission {
+  const lead = (row.leads as { full_name?: string; email?: string } | null) ??
+    null;
+  const template = (row.form_templates as { name?: string } | null) ?? null;
+  return {
+    id: String(row.id),
+    lead_id: String(row.lead_id),
+    form_template_id: String(row.form_template_id),
+    status: String(row.status ?? "pending"),
+    data:
+      row.data && typeof row.data === "object"
+        ? (row.data as Record<string, unknown>)
+        : {},
+    access_token: row.access_token ? String(row.access_token) : null,
+    access_token_expires_at: row.access_token_expires_at
+      ? String(row.access_token_expires_at)
+      : null,
+    submitted_at: row.submitted_at ? String(row.submitted_at) : null,
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+    full_name: lead?.full_name ?? null,
+    email: lead?.email ?? null,
+    template_name: template?.name ?? null,
+  };
+}
+
+export async function getAdminCommunications(
+  leadId: string
+): Promise<Communication[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("communications")
+    .select("*")
+    .eq("lead_id", leadId)
+    .order("sent_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+    id: String(row.id),
+    lead_id: String(row.lead_id),
+    type: (row.type as Communication["type"]) ?? "note",
+    direction: (row.direction as Communication["direction"]) ?? "outbound",
+    subject: row.subject ? String(row.subject) : null,
+    body: row.body ? String(row.body) : null,
+    metadata:
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : {},
+    sent_at: String(row.sent_at ?? ""),
+  }));
 }
