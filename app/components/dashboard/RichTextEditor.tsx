@@ -11,6 +11,7 @@ import {
   ListOrdered,
   Heading2,
   Link as LinkIcon,
+  RectangleHorizontal,
   RemoveFormatting,
 } from "lucide-react";
 import { useCallback } from "react";
@@ -88,6 +89,25 @@ export function RichTextEditor({
     [editor]
   );
 
+  const insertButton = useCallback(() => {
+    if (!editor) return;
+    const href = window.prompt(
+      "Button URL (you can use a variable like {{form.link}})",
+      ""
+    );
+    if (href === null) return;
+    const label = window.prompt("Button label", "Click here");
+    if (label === null || !label.trim()) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "emailButton",
+        attrs: { href, label: label.trim(), align: "center" },
+      })
+      .run();
+  }, [editor]);
+
   if (!editor) {
     return <div className="h-40 bg-grey/20 rounded-lg" />;
   }
@@ -160,6 +180,13 @@ export function RichTextEditor({
           onClick={setLink}
         >
           <LinkIcon size={16} />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Button"
+          active={editor.isActive("emailButton")}
+          onClick={insertButton}
+        >
+          <RectangleHorizontal size={16} />
         </ToolbarButton>
         <ToolbarButton
           title="Clear formatting"

@@ -21,33 +21,61 @@ function StatCard({
   );
 }
 
+function StatusBreakdown({
+  title,
+  entries,
+  emptyText,
+}: {
+  title: string;
+  entries: [string, number][];
+  emptyText: string;
+}) {
+  return (
+    <div className="bg-white border border-grey/40 rounded-2xl p-6">
+      <h2 className="text-lg font-semibold text-textdark">{title}</h2>
+      {entries.length === 0 ? (
+        <p className="text-textdark/60 mt-3">{emptyText}</p>
+      ) : (
+        <dl className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          {entries.map(([status, count]) => (
+            <div key={status} className="rounded-xl border border-grey/40 p-4">
+              <dt className="text-sm text-textdark/60 capitalize">
+                {status.replace(/_/g, " ")}
+              </dt>
+              <dd className="text-2xl font-bold text-navy mt-1">{count}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 export default async function AdminOverviewPage() {
   const stats = await getAdminStats();
-
-  const statusEntries = Object.entries(stats.byStatus);
 
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-bold text-textdark">Overview</h1>
       <p className="text-textdark/60 mt-1">
-        A snapshot of your applications, drivers, and catalogue.
+        A snapshot of your leads, submissions, clients and catalogue.
       </p>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
         <StatCard
-          label="Total Applications"
-          value={stats.applications}
-          href="/dashboard/admin/applications"
+          label="Total Leads"
+          value={stats.leads}
+          href="/dashboard/admin/leads"
         />
         <StatCard
-          label="Drivers"
+          label="Submissions"
+          value={stats.submissions}
+          href="/dashboard/admin/submissions"
+        />
+        <StatCard
+          label="Clients"
           value={stats.drivers}
           href="/dashboard/admin/drivers"
-        />
-        <StatCard
-          label="Active Garages"
-          value={stats.garages}
-          href="/dashboard/admin/garages"
         />
         <StatCard
           label="Published Services"
@@ -56,27 +84,17 @@ export default async function AdminOverviewPage() {
         />
       </div>
 
-      <div className="bg-white border border-grey/40 rounded-2xl p-6 mt-8">
-        <h2 className="text-lg font-semibold text-textdark">
-          Applications by status
-        </h2>
-        {statusEntries.length === 0 ? (
-          <p className="text-textdark/60 mt-3">No applications yet.</p>
-        ) : (
-          <dl className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-            {statusEntries.map(([status, count]) => (
-              <div
-                key={status}
-                className="rounded-xl border border-grey/40 p-4"
-              >
-                <dt className="text-sm text-textdark/60 capitalize">
-                  {status.replace(/_/g, " ")}
-                </dt>
-                <dd className="text-2xl font-bold text-navy mt-1">{count}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+      <div className="space-y-6 mt-8">
+        <StatusBreakdown
+          title="Leads by status"
+          entries={Object.entries(stats.byStatus)}
+          emptyText="No leads yet."
+        />
+        <StatusBreakdown
+          title="Submissions by status"
+          entries={Object.entries(stats.bySubmissionStatus)}
+          emptyText="No submissions yet."
+        />
       </div>
     </div>
   );

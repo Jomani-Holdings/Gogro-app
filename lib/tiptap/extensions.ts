@@ -1,5 +1,6 @@
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import { EmailButton } from "./ButtonExtension";
 
 export const editorExtensions = [
   StarterKit,
@@ -8,4 +9,5 @@ export const editorExtensions = [
     autolink: true,
     defaultProtocol: "https",
   }),
+  EmailButton,
 ];

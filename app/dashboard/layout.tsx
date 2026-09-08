@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { DashboardShell } from "@/app/components/dashboard/DashboardShell";
-import { adminNav, driverNav } from "@/lib/dashboard-nav";
+import { adminNav, clientNav } from "@/lib/dashboard-nav";
 
 export default async function DashboardLayout({
   children,
@@ -16,7 +16,7 @@ export default async function DashboardLayout({
 
   return (
     <DashboardShell
-      navItems={isAdmin ? adminNav : driverNav}
+      navItems={isAdmin ? adminNav : clientNav}
       role={profile.role}
       fullName={profile.full_name}
       email={profile.email}
