@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHero } from "@/app/components/PageHero";
 import { getPartnerTypes } from "@/lib/data/partner-types";
 import { resolveIcon } from "@/lib/service-icons";
+import { resolveMetadata } from "@/lib/data/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/partners");
+}
 
 export default async function PartnersPage() {
   const categories = await getPartnerTypes();

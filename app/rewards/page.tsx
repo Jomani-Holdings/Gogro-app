@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
+import { resolveMetadata } from "@/lib/data/seo";
 import { Fuel, Wallet, Wrench } from "lucide-react";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/rewards");
+}
 
 const benefits = [
   {

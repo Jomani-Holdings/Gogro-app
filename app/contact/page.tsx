@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { PageHero } from "@/app/components/PageHero";
 import { getWhatsAppLink, siteConfig } from "@/app/lib/site-config";
+import { resolveMetadata } from "@/lib/data/seo";
 import { MessageCircle, Phone, Mail } from "lucide-react";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/contact");
+}
 
 function FacebookIcon() {
   return (

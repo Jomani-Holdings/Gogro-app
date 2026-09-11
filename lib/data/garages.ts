@@ -1,21 +1,25 @@
 import { hasSupabaseConfig, createReadonlyClient } from "@/lib/supabase/readonly";
 import type { Garage } from "@/lib/data/types";
 
-type FallbackGarage = Omit<Garage, "active" | "sort_order"> & {
+type FallbackGarage = Omit<
+  Garage,
+  "active" | "sort_order" | "image_path" | "description"
+> & {
   partner_type_slug: string;
 };
 
 export const FALLBACK_GARAGES: FallbackGarage[] = [
-  { id: "kraaifontein-astron", name: "Kraaifontein Astron", partner_type_id: null, partner_type_slug: "fuel", address: "1 Brighton Road, Kraaifontein, Cape Town, 7570", phone: "021 555 0101", latitude: -33.848, longitude: 18.7176 },
-  { id: "goodwood-astron", name: "Goodwood Astron", partner_type_id: null, partner_type_slug: "fuel", address: "42 Voortrekker Road, Goodwood, Cape Town, 7460", phone: "021 555 0102", latitude: -33.9106, longitude: 18.5532 },
-  { id: "paarl-bp", name: "Paarl BP", partner_type_id: null, partner_type_slug: "fuel", address: "18 Main Road, Paarl, 7646", phone: "021 555 0103", latitude: -33.7342, longitude: 18.9621 },
-  { id: "atlantis-astron", name: "Atlantis Astron", partner_type_id: null, partner_type_slug: "fuel", address: "7 Silvermine Street, Atlantis, Cape Town, 7349", phone: "021 555 0104", latitude: -33.5669, longitude: 18.4831 },
-  { id: "grassy-park-astron", name: "Grassy Park Astron", partner_type_id: null, partner_type_slug: "fuel", address: "3 Klip Road, Grassy Park, Cape Town, 7941", phone: "021 555 0105", latitude: -34.0486, longitude: 18.4948 },
-  { id: "blue-downs-astron", name: "Blue Downs Astron", partner_type_id: null, partner_type_slug: "fuel", address: "22 Hindle Road, Blue Downs, Cape Town, 7100", phone: "021 555 0106", latitude: -34.0112, longitude: 18.7005 },
-  { id: "strand-astron", name: "Strand Astron", partner_type_id: null, partner_type_slug: "fuel", address: "11 Beach Road, Strand, Cape Town, 7140", phone: "021 555 0107", latitude: -34.1166, longitude: 18.8272 },
-  { id: "mowbray-astron", name: "Mowbray Astron", partner_type_id: null, partner_type_slug: "fuel", address: "15 Main Road, Mowbray, Cape Town, 7700", phone: "021 555 0108", latitude: -33.947, longitude: 18.476 },
-  { id: "cape-town-service-centre", name: "Cape Town Service Centre", partner_type_id: null, partner_type_slug: "service", address: "4 Buitenkant Street, Cape Town, 8001", phone: "021 555 0201", latitude: -33.9258, longitude: 18.4232 },
-  { id: "northern-suburbs-auto-repairs", name: "Northern Suburbs Auto Repairs", partner_type_id: null, partner_type_slug: "service", address: "9 Durban Road, Bellville, Cape Town, 7530", phone: "021 555 0202", latitude: -33.896, longitude: 18.6422 },
+  { id: "astron-marlborough", name: "Astron Energy Marlborough Street", partner_type_id: null, partner_type_slug: "fuel", address: "22 Marlborough Street, Kraaifontein 7579", phone: null, latitude: null, longitude: null },
+  { id: "astron-goodwood", name: "Astron Energy Goodwood", partner_type_id: null, partner_type_slug: "fuel", address: "31 Voortrekker Road, Goodwood, 7460", phone: null, latitude: null, longitude: null },
+  { id: "bp-paarl", name: "BP Paarl", partner_type_id: null, partner_type_slug: "fuel", address: "Cnr Jan Van Riebeeck Drive & Huguenot", phone: null, latitude: null, longitude: null },
+  { id: "astron-klip-road", name: "Astron Energy Klip Road", partner_type_id: null, partner_type_slug: "fuel", address: "38 Klip Road, Grassy Park", phone: null, latitude: null, longitude: null },
+  { id: "astron-blue-downs-way", name: "Astron Energy Blue Down Way", partner_type_id: null, partner_type_slug: "fuel", address: "1 Blue Downs Way, Blue Downs, Cape Town 8530", phone: null, latitude: null, longitude: null },
+  { id: "astron-greenways", name: "Astron Energy Greenways", partner_type_id: null, partner_type_slug: "fuel", address: "82 Gordon's Bay Drive, Strand", phone: null, latitude: null, longitude: null },
+  { id: "astron-mowbray", name: "Astron Energy Mowbray", partner_type_id: null, partner_type_slug: "fuel", address: "80 Durban Road, Mowbray, 7700", phone: null, latitude: null, longitude: null },
+  { id: "cl-automotive", name: "CL Automotive Services", partner_type_id: null, partner_type_slug: "service", address: "172 Wapnick Street, Peerless Park West, Cape Town, 7570", phone: null, latitude: null, longitude: null },
+  { id: "fixxr", name: "Fixxr", partner_type_id: null, partner_type_slug: "service", address: "Address available on request", phone: null, latitude: null, longitude: null },
+  { id: "autoworx-performance", name: "Autoworx Performance", partner_type_id: null, partner_type_slug: "service", address: "30 Balfour Road, Windsor Park, Cape Town, 7570", phone: null, latitude: null, longitude: null },
+  { id: "best-drive-brackenfell", name: "Best drive Brackenfell", partner_type_id: null, partner_type_slug: "service", address: "3 Jeanette Street, Brackenfell South, Cape Town 7560", phone: null, latitude: null, longitude: null },
 ];
 
 function fallbackForType(slug?: string): Garage[] {
@@ -32,6 +36,8 @@ function fallbackForType(slug?: string): Garage[] {
     partner_type_id: garage.partner_type_id,
     active: true,
     sort_order: 0,
+    image_path: null,
+    description: null,
   }));
 }
 
@@ -46,6 +52,8 @@ function mapRow(row: Record<string, unknown>): Garage {
     partner_type_id: row.partner_type_id ? String(row.partner_type_id) : null,
     active: Boolean(row.active),
     sort_order: Number(row.sort_order ?? 0),
+    image_path: row.image_path ? String(row.image_path) : null,
+    description: row.description ? String(row.description) : null,
   };
 }
 

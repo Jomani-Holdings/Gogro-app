@@ -6,6 +6,7 @@ import type { JSONContent } from "@tiptap/core";
 import type { FormField, FormTemplate } from "@/lib/data/types";
 import { RichTextEditor } from "@/app/components/dashboard/RichTextEditor";
 import { saveFormTemplate } from "@/app/dashboard/admin/forms/actions";
+import { documentUrl } from "@/lib/media";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -51,6 +52,11 @@ export function FormTemplateBuilder({
   const [fields, setFields] = useState<FormField[]>(
     form?.field_schema.length ? form.field_schema : [blankField()]
   );
+  const [contractPath] = useState<string | null>(
+    form?.contract_document_path ?? null
+  );
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [removeContract, setRemoveContract] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +102,8 @@ export function FormTemplateBuilder({
     file.append("intro_content", JSON.stringify(intro));
     file.append("terms_content", JSON.stringify(terms));
     file.append("field_schema", JSON.stringify(cleanedFields));
+    if (contractFile) file.append("contract_document", contractFile);
+    if (removeContract) file.append("remove_contract", "on");
 
     try {
       await saveFormTemplate(file);
@@ -348,6 +356,64 @@ export function FormTemplateBuilder({
       <div className="bg-white border border-grey/40 rounded-2xl p-6 space-y-5">
         <h2 className="text-lg font-semibold text-navy">Terms / Footer</h2>
         <RichTextEditor value={terms} onChange={setTerms} />
+      </div>
+
+      <div className="bg-white border border-grey/40 rounded-2xl p-6 space-y-5">
+        <h2 className="text-lg font-semibold text-navy">
+          Contract PDF (optional)
+        </h2>
+        <p className="text-sm text-textdark/60">
+          Upload a blank contract. Clients who receive this form will be able to
+          download it, sign it, and re-upload the signed copy.
+        </p>
+
+        {contractPath && !removeContract ? (
+          <div className="rounded-xl border border-grey/40 bg-offwhite p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-textdark text-sm">
+                  Current contract
+                </p>
+                <a
+                  href={documentUrl(contractPath)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-navy hover:text-orange underline break-all"
+                >
+                  {contractPath.split("/").pop()}
+                </a>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-textdark cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={removeContract}
+                  onChange={(e) => setRemoveContract(e.target.checked)}
+                  className="h-4 w-4 accent-error"
+                />
+                Remove
+              </label>
+            </div>
+          </div>
+        ) : null}
+
+        <div>
+          <label className="block text-sm font-semibold text-textdark mb-1.5">
+            {contractPath && !removeContract
+              ? "Replace contract PDF"
+              : "Upload contract PDF"}
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={(e) => setContractFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-textdark file:mr-4 file:rounded-lg file:border-0 file:bg-navy file:px-4 file:py-3 file:text-sm file:font-semibold file:text-white hover:file:bg-navy/90"
+          />
+          {contractFile ? (
+            <p className="mt-2 text-sm text-textdark/70">
+              Selected: {contractFile.name}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex gap-3">

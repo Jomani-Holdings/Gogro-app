@@ -10,6 +10,7 @@ const statusStyles: Record<string, string> = {
   form_sent: "bg-blue-600/10 text-blue-600",
   form_started: "bg-blue-600/10 text-blue-600",
   submitted: "bg-navy/10 text-navy",
+  documents_requested: "bg-yellow/30 text-textdark",
   approved: "bg-success/10 text-success",
   rejected: "bg-error/10 text-error",
   dormant: "bg-grey/40 text-textdark",
@@ -21,6 +22,7 @@ const statusLabels: Record<string, string> = {
   form_sent: "Form Sent",
   form_started: "Form Started",
   submitted: "Submitted",
+  documents_requested: "Documents Requested",
   approved: "Approved",
   rejected: "Rejected",
   dormant: "Dormant",
@@ -32,6 +34,7 @@ const filters = [
   "contacted",
   "form_sent",
   "submitted",
+  "documents_requested",
   "approved",
   "rejected",
 ] as const;

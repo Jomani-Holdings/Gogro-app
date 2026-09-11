@@ -1,6 +1,7 @@
 import { getPublicForm } from "@/lib/data/apply-public";
 import { renderRichText } from "@/lib/tiptap/render";
 import { PublicFormPortal } from "@/app/components/apply/PublicFormPortal";
+import { documentUrl } from "@/lib/media";
 
 export default async function PublicFormPage({
   params,
@@ -22,6 +23,7 @@ export default async function PublicFormPage({
 
   const introHtml = renderRichText(payload.template.intro_content);
   const termsHtml = renderRichText(payload.template.terms_content);
+  const contractPath = payload.template.contract_document_path;
 
   const initialData: Record<string, unknown> = {
     fullName: payload.lead.full_name || "",
@@ -39,6 +41,28 @@ export default async function PublicFormPage({
           className="prose prose-lg max-w-none mb-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-navy [&_p]:mt-3 [&_a]:text-orange [&_a]:underline"
           dangerouslySetInnerHTML={{ __html: introHtml }}
         />
+      ) : undefined}
+
+      {contractPath ? (
+        <div className="mb-8 rounded-2xl border border-navy/20 bg-navy/5 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-navy">
+              Sign your contract
+            </h2>
+            <p className="text-sm text-textdark/70 mt-1">
+              Download the contract, sign it, and upload the signed copy to
+              your dashboard.
+            </p>
+          </div>
+          <a
+            href={`${documentUrl(contractPath)}?token=${token}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-lg bg-navy text-white font-semibold py-3 px-6 hover:bg-navy/90 shrink-0"
+          >
+            Download Contract
+          </a>
+        </div>
       ) : undefined}
 
       <PublicFormPortal

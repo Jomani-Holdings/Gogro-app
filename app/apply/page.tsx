@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { PageHero } from "@/app/components/PageHero";
 import {
   ExpressJoinForm,
   type ServiceOption,
 } from "@/app/components/apply/ExpressJoinForm";
 import { getServices } from "@/lib/data/services";
+import { resolveMetadata } from "@/lib/data/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/apply");
+}
 
 const FALLBACK_SERVICES: ServiceOption[] = [
   { id: "fallback-fuel-credit", name: "Fuel Credit" },

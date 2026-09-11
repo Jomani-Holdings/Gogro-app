@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins, Inter } from "next/font/google";
 import "./globals.css";
 import { MarketingShell } from "@/app/components/MarketingShell";
+import { SITE_URL } from "@/lib/data/seo";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -16,6 +17,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Go Gro Mobility | Mobility Solutions That Move You Forward",
   description:
     "Helping mobility entrepreneurs move, operate and grow with fuel credit, vehicle rentals and vehicle management.",

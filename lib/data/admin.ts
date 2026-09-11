@@ -10,6 +10,10 @@ import type {
   FormField,
   FormSubmission,
   Communication,
+  GalleryImage,
+  SeoMeta,
+  Vehicle,
+  VehicleStatus,
 } from "@/lib/data/types";
 
 export type EmailTemplate = {
@@ -55,6 +59,14 @@ export type AdminDriver = {
   email: string | null;
   phone: string | null;
   suspended: boolean;
+  driver_status: string;
+  car_make_model: string | null;
+  car_registration: string | null;
+  credit_limit: number | null;
+  fuel_balance: number | null;
+  fuel_code: string | null;
+  fuel_garage_id: string | null;
+  fuel_garage_name: string | null;
   created_at: string;
 };
 
@@ -128,19 +140,94 @@ export async function getAdminDrivers(): Promise<AdminDriver[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, user_id, full_name, email, phone, suspended, created_at")
+    .select("*, garages(name)")
     .neq("role", "admin")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+  return ((data as Record<string, unknown>[]) ?? []).map(mapAdminDriver);
+}
+
+export async function getAdminDriver(id: string): Promise<AdminDriver | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*, garages(name)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapAdminDriver(data as Record<string, unknown>);
+}
+
+function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
+  const garage = (row.garages as { name?: string } | null) ?? null;
+  return {
     id: String(row.id),
     user_id: String(row.user_id),
     full_name: row.full_name ? String(row.full_name) : null,
     email: row.email ? String(row.email) : null,
     phone: row.phone ? String(row.phone) : null,
     suspended: Boolean(row.suspended),
+    driver_status: String(row.driver_status ?? "pending"),
+    car_make_model: row.car_make_model ? String(row.car_make_model) : null,
+    car_registration: row.car_registration ? String(row.car_registration) : null,
+    credit_limit:
+      row.credit_limit === null || row.credit_limit === undefined
+        ? null
+        : Number(row.credit_limit),
+    fuel_balance:
+      row.fuel_balance === null || row.fuel_balance === undefined
+        ? null
+        : Number(row.fuel_balance),
+    fuel_code: row.fuel_code ? String(row.fuel_code) : null,
+    fuel_garage_id: row.fuel_garage_id ? String(row.fuel_garage_id) : null,
+    fuel_garage_name: garage?.name ?? null,
     created_at: String(row.created_at ?? ""),
+  };
+}
+
+export async function getAdminDriverByUserId(
+  userId: string
+): Promise<AdminDriver | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*, garages(name)")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapAdminDriver(data as Record<string, unknown>);
+}
+
+export async function getAdminLeadByUserId(
+  userId: string
+): Promise<Lead | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*, services(name)")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapLead(data as Record<string, unknown>);
+}
+
+export async function getAdminGarageOptions(): Promise<
+  { id: string; name: string }[]
+> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("garages")
+    .select("id, name")
+    .order("name");
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
   }));
 }
 
@@ -201,7 +288,69 @@ export async function getAdminGarages(): Promise<Garage[]> {
     partner_type_id: row.partner_type_id ? String(row.partner_type_id) : null,
     active: Boolean(row.active),
     sort_order: Number(row.sort_order ?? 0),
+    image_path: row.image_path ? String(row.image_path) : null,
+    description: row.description ? String(row.description) : null,
   }));
+}
+
+export async function getAdminVehicleDriverOptions(): Promise<
+  { id: string; full_name: string | null }[]
+> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .neq("role", "admin")
+    .order("full_name");
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+    id: String(row.id),
+    full_name: row.full_name ? String(row.full_name) : null,
+  }));
+}
+
+function mapVehicle(row: Record<string, unknown>): Vehicle {
+  const driver = (row.profiles as { full_name?: string | null } | null) ?? null;
+  return {
+    id: String(row.id),
+    make_model: String(row.make_model ?? ""),
+    registration: String(row.registration ?? ""),
+    driver_id: row.driver_id ? String(row.driver_id) : null,
+    driver_name: driver?.full_name ?? null,
+    owner_name: row.owner_name ? String(row.owner_name) : null,
+    category: row.category ? String(row.category) : null,
+    weekly_rental:
+      row.weekly_rental === null || row.weekly_rental === undefined
+        ? null
+        : Number(row.weekly_rental),
+    status: String(row.status ?? "active") as VehicleStatus,
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
+export async function getAdminVehicles(): Promise<Vehicle[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("vehicles")
+    .select("*, profiles(id, full_name)")
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map(mapVehicle);
+}
+
+export async function getAdminVehicle(id: string): Promise<Vehicle | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("vehicles")
+    .select("*, profiles(id, full_name)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapVehicle(data as Record<string, unknown>);
 }
 
 export async function getAdminPages(): Promise<PageRecord[]> {
@@ -437,6 +586,9 @@ function mapFormTemplate(row: Record<string, unknown>): FormTemplate {
     email_template_slug: row.email_template_slug
       ? String(row.email_template_slug)
       : null,
+    contract_document_path: row.contract_document_path
+      ? String(row.contract_document_path)
+      : null,
     sort_order: Number(row.sort_order ?? 0),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
@@ -536,4 +688,86 @@ export async function getAdminCommunications(
         : {},
     sent_at: String(row.sent_at ?? ""),
   }));
+}
+
+export async function getAdminGalleryImages(): Promise<GalleryImage[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("galleries")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map(mapGalleryImage);
+}
+
+export async function getAdminGalleryImage(
+  id: string
+): Promise<GalleryImage | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("galleries")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapGalleryImage(data as Record<string, unknown>);
+}
+
+function mapGalleryImage(row: Record<string, unknown>): GalleryImage {
+  return {
+    id: String(row.id),
+    storage_path: String(row.storage_path),
+    filename: String(row.filename),
+    caption: row.caption ? String(row.caption) : null,
+    alt_text: row.alt_text ? String(row.alt_text) : null,
+    description: row.description ? String(row.description) : null,
+    sort_order: Number(row.sort_order ?? 0),
+    active: Boolean(row.active),
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
+export async function getAdminSeoMeta(): Promise<SeoMeta[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("seo_meta")
+    .select("*")
+    .order("route_path");
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map(mapSeoMeta);
+}
+
+export async function getAdminSeoMetaByRoute(
+  routePath: string
+): Promise<SeoMeta | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("seo_meta")
+    .select("*")
+    .eq("route_path", routePath)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapSeoMeta(data as Record<string, unknown>);
+}
+
+function mapSeoMeta(row: Record<string, unknown>): SeoMeta {
+  return {
+    id: String(row.id),
+    route_path: String(row.route_path),
+    page_title: row.page_title ? String(row.page_title) : null,
+    meta_title: row.meta_title ? String(row.meta_title) : null,
+    meta_description: row.meta_description ? String(row.meta_description) : null,
+    og_title: row.og_title ? String(row.og_title) : null,
+    og_description: row.og_description ? String(row.og_description) : null,
+    og_image_url: row.og_image_url ? String(row.og_image_url) : null,
+    canonical_path: row.canonical_path ? String(row.canonical_path) : null,
+    noindex: Boolean(row.noindex),
+    updated_at: String(row.updated_at ?? ""),
+  };
 }

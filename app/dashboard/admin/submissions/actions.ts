@@ -38,9 +38,7 @@ export async function updateSubmissionStatus(
 
   const { data: submission } = await admin
     .from("form_submissions")
-    .select(
-      "lead_id, form_templates(name), leads(full_name, email)"
-    )
+    .select("lead_id, data, form_templates(name), leads(full_name, email, user_id)")
     .eq("id", id)
     .maybeSingle();
 
@@ -50,11 +48,16 @@ export async function updateSubmissionStatus(
   const lead = (submissionData.leads as {
     full_name?: string;
     email?: string;
+    user_id?: string | null;
   } | null) ?? null;
   const template = (submissionData.form_templates as {
     name?: string;
   } | null) ?? null;
   const leadId = String(submissionData.lead_id);
+  const formData =
+    submissionData.data && typeof submissionData.data === "object"
+      ? (submissionData.data as Record<string, unknown>)
+      : {};
 
   const { error } = await admin
     .from("form_submissions")
@@ -69,6 +72,25 @@ export async function updateSubmissionStatus(
     .from("leads")
     .update({ status: leadStatus, updated_at: new Date().toISOString() })
     .eq("id", leadId);
+
+  if (status === "approved" && lead?.user_id) {
+    const carMakeModel = formData.carMakeModelYear
+      ? String(formData.carMakeModelYear)
+      : null;
+    const carRegistration = formData.carRegistration
+      ? String(formData.carRegistration)
+      : null;
+    if (carMakeModel || carRegistration) {
+      await admin
+        .from("profiles")
+        .update({
+          car_make_model: carMakeModel,
+          car_registration: carRegistration,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", lead.user_id);
+    }
+  }
 
   if ((status === "approved" || status === "rejected") && lead?.email) {
     const slug = status === "approved" ? "submission_approved_client" : "submission_rejected_client";

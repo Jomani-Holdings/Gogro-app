@@ -27,6 +27,7 @@ export const siteConfig = {
   nav: {
     about: { label: "About Us", href: "/about" },
     services: { label: "Services", href: "/services" },
+    gallery: { label: "Gallery", href: "/gallery" },
     rewards: { label: "Rewards & Benefits", href: "/rewards" },
     partners: { label: "Partners", href: "/partners" },
     contact: { label: "Contact Us", href: "/contact" },

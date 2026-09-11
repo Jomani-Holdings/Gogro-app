@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAdminLead, getAdminCommunications, getSubmissionsForLead } from "@/lib/data/admin";
 import { getPublishedFormTemplates } from "@/lib/data/admin";
+import { getDocumentsForLead } from "@/lib/data/documents";
 import { LeadStatusSelect } from "@/app/components/dashboard/LeadStatusSelect";
 import { NoteForm } from "@/app/components/dashboard/NoteForm";
 import { AssignFormModal } from "@/app/components/dashboard/AssignFormModal";
+import { DocumentsManager } from "@/app/components/dashboard/DocumentsManager";
 
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
@@ -32,10 +34,11 @@ export default async function AdminLeadDetailPage({
   const lead = await getAdminLead(id);
   if (!lead) notFound();
 
-  const [communications, submissions, forms] = await Promise.all([
+  const [communications, submissions, forms, documents] = await Promise.all([
     getAdminCommunications(id),
     getSubmissionsForLead(id),
     getPublishedFormTemplates(),
+    getDocumentsForLead(id),
   ]);
 
   return (
@@ -106,6 +109,14 @@ export default async function AdminLeadDetailPage({
                 ))}
               </ul>
             )}
+          </section>
+
+          <section className="bg-white border border-grey/40 rounded-2xl p-6">
+            <DocumentsManager
+              leadId={lead.id}
+              userId={lead.user_id ?? ""}
+              documents={documents}
+            />
           </section>
 
           <section className="bg-white border border-grey/40 rounded-2xl p-6">
