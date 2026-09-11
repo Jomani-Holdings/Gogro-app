@@ -3,9 +3,12 @@ import { notFound } from "next/navigation";
 import {
   getAdminSubmission,
   getAdminFormTemplate,
+  getAdminLead,
 } from "@/lib/data/admin";
+import { getDocumentsForLead } from "@/lib/data/documents";
 import { SubmissionStatusActions } from "@/app/components/dashboard/SubmissionStatusActions";
 import { SubmissionPdfDownload } from "@/app/components/dashboard/SubmissionPdfDownload";
+import { DocumentsManager } from "@/app/components/dashboard/DocumentsManager";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -24,7 +27,11 @@ export default async function AdminSubmissionDetailPage({
   const submission = await getAdminSubmission(id);
   if (!submission) notFound();
 
-  const template = await getAdminFormTemplate(submission.form_template_id);
+  const [template, lead, documents] = await Promise.all([
+    getAdminFormTemplate(submission.form_template_id),
+    getAdminLead(submission.lead_id),
+    getDocumentsForLead(submission.lead_id),
+  ]);
   const fields =
     template?.field_schema.filter(
       (field) => submission.data[field.key] !== undefined
@@ -95,6 +102,14 @@ export default async function AdminSubmissionDetailPage({
                 ))}
               </dl>
             )}
+          </section>
+
+          <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
+            <DocumentsManager
+              leadId={submission.lead_id}
+              userId={lead?.user_id ?? ""}
+              documents={documents}
+            />
           </section>
 
           <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">

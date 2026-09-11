@@ -5,6 +5,7 @@ import { CTASection } from "@/app/components/CTASection";
 import { getServices, getServiceBySlug } from "@/lib/data/services";
 import { FALLBACK_SERVICE_DETAILS } from "@/lib/data/service-details";
 import { renderRichText } from "@/lib/tiptap/render";
+import { getSeoMeta } from "@/lib/data/seo";
 
 export async function generateStaticParams() {
   const services = await getServices();
@@ -19,6 +20,21 @@ export async function generateMetadata({
   const { slug } = await params;
   const service = await getServiceBySlug(slug);
   if (!service) return {};
+  const routePath = `/services/${slug}`;
+  const seo = await getSeoMeta(routePath);
+  if (seo?.meta_title || seo?.meta_description) {
+    return {
+      title: seo.meta_title ?? `${service.name} | Go Gro Mobility`,
+      description: seo.meta_description ?? service.description ?? undefined,
+      robots: {
+        index: !seo.noindex,
+        follow: true,
+      },
+      alternates: {
+        canonical: seo.canonical_path ?? routePath,
+      },
+    };
+  }
   return {
     title: `${service.name} | Go Gro Mobility`,
     description: service.description ?? undefined,

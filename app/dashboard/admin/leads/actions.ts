@@ -23,6 +23,7 @@ const LEAD_STATUSES = [
   "form_sent",
   "form_started",
   "submitted",
+  "documents_requested",
   "approved",
   "rejected",
   "dormant",

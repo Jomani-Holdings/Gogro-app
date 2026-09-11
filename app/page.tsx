@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Hero } from "@/app/components/Hero";
 import { TrustStrip } from "@/app/components/TrustStrip";
 import { ServicesGrid } from "@/app/components/ServicesGrid";
@@ -5,6 +6,11 @@ import { HowItWorks } from "@/app/components/HowItWorks";
 import { StatsBar } from "@/app/components/StatsBar";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
+import { resolveMetadata } from "@/lib/data/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/");
+}
 
 export default function Home() {
   return (

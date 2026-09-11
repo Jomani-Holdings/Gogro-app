@@ -9,6 +9,7 @@ const options = [
   { value: "form_sent", label: "Form Sent" },
   { value: "form_started", label: "Form Started" },
   { value: "submitted", label: "Submitted" },
+  { value: "documents_requested", label: "Documents Requested" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
   { value: "dormant", label: "Dormant" },

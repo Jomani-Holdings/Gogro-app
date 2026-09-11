@@ -184,4 +184,83 @@ export const FALLBACK_SERVICE_DETAILS: Record<string, JSONContent> = {
       "List your vehicle with Go Gro and let us help you turn it into an income-generating asset."
     ),
   ]),
+  "vehicle-repairs": doc([
+    heading(2, "Keep Your Vehicle on the Road"),
+    paragraph(
+      "Go Gro Vehicle Repairs connects drivers with trusted mechanics and partner garages so mechanical problems don't become lost earning days."
+    ),
+    heading(2, "How It Works"),
+    {
+      type: "orderedList",
+      content: [
+        {
+          type: "listItem",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Request a repair", marks: [{ type: "bold" }] },
+                {
+                  type: "text",
+                  text: " — Log a repair need through your Go Gro contact or support channel.",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "listItem",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Get connected", marks: [{ type: "bold" }] },
+                {
+                  type: "text",
+                  text: " — We link you to a vetted partner garage or mechanic in our network.",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "listItem",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Approve and repair", marks: [{ type: "bold" }] },
+                {
+                  type: "text",
+                  text: " — Once assessed, the work is carried out and you settle according to the agreed arrangement.",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "listItem",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Get back to earning", marks: [{ type: "bold" }] },
+                {
+                  type: "text",
+                  text: " — Back on the road with quality-assured work and less downtime.",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    heading(2, "A Driver Perk, Not Just a Service"),
+    paragraph(
+      "Vehicle Repairs is available as part of the Go Gro driver ecosystem. While drivers can sign up for repair support on its own, it is designed as a loyalty perk that becomes more valuable the longer you stay active with Go Gro — alongside Fuel Credit, Vehicle Rental and Driver Rewards."
+    ),
+    paragraph(
+      "Our goal is to help you keep your vehicle earning, not just fix it."
+    ),
+  ]),
 };

@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
+import { resolveMetadata } from "@/lib/data/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/about");
+}
 
 export default function AboutPage() {
   return (
@@ -16,8 +22,8 @@ export default function AboutPage() {
           About Go Gro Mobility
         </h2>
         <p className="text-lg text-textdark/70 mt-4">
-          Go Gro Mobility is a mobility solutions company focused on helping
-          entrepreneurs move, operate and grow.
+          Founded in 2025, Go Gro Mobility is a mobility solutions company
+          focused on helping entrepreneurs move, operate and grow.
         </p>
         <p className="text-lg text-textdark/70 mt-2">
           A venture of Jomani Holdings, Go Gro was created to make the mobility
@@ -46,7 +52,7 @@ export default function AboutPage() {
         </p>
         <p className="text-lg text-textdark/70 mt-2">
           From fuel solutions and vehicle access to repairs, vehicle management
-          and driver benefits, Go Gro is designed to remove some of the everyday
+          and driver benefits. Go Gro is designed to remove some of the everyday
           barriers that prevent mobility entrepreneurs from growing sustainable
           businesses.
         </p>

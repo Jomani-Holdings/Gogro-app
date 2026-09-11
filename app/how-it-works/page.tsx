@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { PageHero } from "@/app/components/PageHero";
 import { GarageGrid } from "@/app/components/partners/GarageGrid";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
 import { getGaragesByTypeSlug } from "@/lib/data/garages";
 import { howItWorksSteps } from "@/lib/data/how-it-works";
+import { resolveMetadata } from "@/lib/data/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/how-it-works");
+}
 
 export default async function HowItWorksPage() {
   const fuelGarages = await getGaragesByTypeSlug("fuel");

@@ -59,6 +59,12 @@ export function GarageModal({
             </div>
           ) : null}
 
+          {garage.description ? (
+            <p className="mt-4 text-sm whitespace-pre-line text-textdark/70">
+              {garage.description}
+            </p>
+          ) : null}
+
           <div className="mt-5 rounded-xl overflow-hidden border border-grey/40 h-64">
             <iframe
               title={`Map showing ${garage.name}`}

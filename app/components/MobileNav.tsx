@@ -113,6 +113,14 @@ export function MobileNav({
             </Link>
 
             <Link
+              href={nav.gallery.href}
+              onClick={onClose}
+              className="py-3 text-offwhite hover:text-orange font-medium border-b border-white/10"
+            >
+              {nav.gallery.label}
+            </Link>
+
+            <Link
               href={nav.partners.href}
               onClick={onClose}
               className="py-3 text-offwhite hover:text-orange font-medium border-b border-white/10"

@@ -52,6 +52,9 @@ export function Footer() {
             <Link href="/how-it-works" className="text-grey hover:text-white transition-colors">
               How It Works
             </Link>
+            <Link href="/gallery" className="text-grey hover:text-white transition-colors">
+              Gallery
+            </Link>
             <Link href="/rewards" className="text-grey hover:text-white transition-colors">
               Rewards &amp; Benefits
             </Link>
@@ -78,13 +81,10 @@ export function Footer() {
           <div className="flex flex-col gap-4 items-center text-center md:items-start md:text-left">
             <h3 className="font-bold text-lg mb-2">Support</h3>
             <Link href="/contact" className="text-grey hover:text-white transition-colors">
-              Help Centre
-            </Link>
-            <Link href="/contact" className="text-grey hover:text-white transition-colors">
               Contact Us
             </Link>
             <Link href="/legal/terms" className="text-grey hover:text-white transition-colors">
-              Terms &amp; Conditions
+              Terms of Use
             </Link>
             <Link href="/legal/privacy" className="text-grey hover:text-white transition-colors">
               Privacy Policy
