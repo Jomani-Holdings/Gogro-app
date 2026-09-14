@@ -1,16 +1,19 @@
-import { Users, Fuel, Car, Wrench } from "lucide-react";
+import { Users, Fuel, Car, MapPin } from "lucide-react";
 
 const stats = [
-  { value: "R5 million+", label: "Fuel Credit Supplied", icon: Fuel },
-  { value: "800+", label: "Active Drivers", icon: Users },
-  { value: "7+", label: "Partner Garages", icon: Wrench },
-  { value: "400+", label: "Vehicles Managed", icon: Car },
+  { value: "R5M+", label: "Fuel access facilitated", icon: Fuel },
+  { value: "250+", label: "Drivers supported", icon: Users },
+  { value: "400+", label: "Vehicles managed", icon: Car },
+  { value: "8", label: "Fuel partner locations", icon: MapPin },
 ];
 
 export function StatsBar() {
   return (
     <section className="bg-navy py-16 text-white">
       <div className="container mx-auto px-6 md:px-12">
+        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+          Our Impact
+        </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12 divide-x-0 lg:divide-x divide-white/20 text-center">
           {stats.map((stat, index) => {
             const Icon = stat.icon;

@@ -56,7 +56,7 @@ export function Hero() {
           <span className="text-orange">Move You Forward.</span>
         </h1>
         <p className="text-lg md:text-xl text-offwhite mb-10 max-w-2xl font-light">
-          Fuel credit, vehicle rentals, management and repairs.{" "}
+          Fuel credit, Vehicle rentals, vehicle management and repairs.{" "}
           <br className="hidden md:block" />
           All in one platform. Built for drivers.
         </p>

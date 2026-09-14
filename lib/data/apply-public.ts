@@ -114,6 +114,9 @@ function mapTemplate(row: Record<string, unknown>): FormTemplate {
     email_template_slug: row.email_template_slug
       ? String(row.email_template_slug)
       : null,
+    contract_document_path: row.contract_document_path
+      ? String(row.contract_document_path)
+      : null,
     sort_order: Number(row.sort_order ?? 0),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),

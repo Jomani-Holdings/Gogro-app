@@ -20,11 +20,17 @@ import {
   LifeBuoy,
   ClipboardList,
   FilePlus,
+  Globe,
+  Images,
+  Search,
+  Car,
+  Receipt,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import { siteConfig } from "@/app/lib/site-config";
 import { LogoutButton } from "@/app/components/dashboard/LogoutButton";
-import type { NavItem } from "@/lib/dashboard-nav";
+import type { NavItem, NavGroup } from "@/lib/dashboard-nav";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -39,22 +45,30 @@ const iconMap: Record<string, LucideIcon> = {
   Settings,
   ClipboardList,
   FilePlus,
+  Globe,
+  Images,
+  Search,
+  Car,
+  Receipt,
 };
 
 export function DashboardShell({
   navItems,
+  navGroups,
   role,
   fullName,
   email,
   children,
 }: {
   navItems: NavItem[];
+  navGroups?: NavGroup[];
   role: "client" | "admin";
   fullName: string | null;
   email: string | null;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [siteOpen, setSiteOpen] = useState(true);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -81,21 +95,23 @@ export function DashboardShell({
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-6 h-16 border-b border-white/10">
-        <Image
-          src={siteConfig.logo.src}
-          alt={siteConfig.logo.alt}
-          width={siteConfig.logo.width}
-          height={siteConfig.logo.height}
-          priority
-          className="h-8 w-auto"
-        />
+        <Link href="/" className="inline-flex items-center" aria-label="Go Gro home">
+          <Image
+            src={siteConfig.logo.src}
+            alt={siteConfig.logo.alt}
+            width={siteConfig.logo.width}
+            height={siteConfig.logo.height}
+            priority
+            className="h-8 w-auto"
+          />
+        </Link>
       </div>
 
       <p className="px-6 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-wide text-white/40">
         {roleLabel}
       </p>
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+      <nav className="flex-1 overflow-y-auto px-3 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <ul className="flex flex-col gap-1">
           {navItems.map((item) => {
             const Icon = iconMap[item.icon] ?? LayoutDashboard;
@@ -121,22 +137,67 @@ export function DashboardShell({
               </li>
             );
           })}
+
+          {(navGroups ?? []).map((group) => {
+            const GroupIcon = iconMap[group.icon] ?? Globe;
+            const groupActive = group.items.some((item) => isActive(item.href));
+            return (
+              <li key={group.label} className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setSiteOpen((prev) => !prev)}
+                  aria-expanded={siteOpen}
+                  className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                    groupActive
+                      ? "text-white"
+                      : "text-white/70 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <GroupIcon size={16} className="text-white/50 shrink-0" />
+                    {group.label}
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    className={`text-white/50 transition-transform ${
+                      siteOpen ? "" : "-rotate-90"
+                    }`}
+                  />
+                </button>
+
+                {siteOpen && (
+                  <ul className="flex flex-col gap-1 mt-1 pl-6 border-l border-white/10 ml-5">
+                    {group.items.map((item) => {
+                      const Icon = iconMap[item.icon] ?? LayoutDashboard;
+                      const active = isActive(item.href);
+                      return (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            onClick={() => setMobileOpen(false)}
+                            aria-current={active ? "page" : undefined}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              active
+                                ? "bg-white/10 text-white"
+                                : "text-white/70 hover:bg-white/5 hover:text-white"
+                            }`}
+                          >
+                            <Icon
+                              size={15}
+                              className={`shrink-0 ${active ? "text-orange" : "text-white/50"}`}
+                            />
+                            {item.label}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </nav>
-
-      <div className="border-t border-white/10 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center justify-center h-9 w-9 rounded-full border border-white/20 text-white shrink-0">
-            <User size={16} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">
-              {fullName || "Account"}
-            </p>
-            <p className="text-xs text-white/50 truncate">{email ?? ""}</p>
-          </div>
-        </div>
-      </div>
 
       <div className="border-t border-white/10 p-3 flex flex-col gap-1">
         <Link

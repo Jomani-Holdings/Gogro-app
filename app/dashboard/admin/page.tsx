@@ -1,100 +1,100 @@
+import { Users, Fuel, Wallet, Percent, Wrench, ShieldAlert, Car, Truck } from "lucide-react";
 import Link from "next/link";
-import { getAdminStats } from "@/lib/data/admin";
-
-function StatCard({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: number;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="bg-white border border-grey/40 rounded-2xl p-6 hover:border-orange transition-colors"
-    >
-      <p className="text-sm text-textdark/60">{label}</p>
-      <p className="text-4xl font-bold text-navy mt-2">{value}</p>
-    </Link>
-  );
-}
-
-function StatusBreakdown({
-  title,
-  entries,
-  emptyText,
-}: {
-  title: string;
-  entries: [string, number][];
-  emptyText: string;
-}) {
-  return (
-    <div className="bg-white border border-grey/40 rounded-2xl p-6">
-      <h2 className="text-lg font-semibold text-textdark">{title}</h2>
-      {entries.length === 0 ? (
-        <p className="text-textdark/60 mt-3">{emptyText}</p>
-      ) : (
-        <dl className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-          {entries.map(([status, count]) => (
-            <div key={status} className="rounded-xl border border-grey/40 p-4">
-              <dt className="text-sm text-textdark/60 capitalize">
-                {status.replace(/_/g, " ")}
-              </dt>
-              <dd className="text-2xl font-bold text-navy mt-1">{count}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </div>
-  );
-}
+import {
+  getAdminDashboardStats,
+  getAdminActiveDriversForDashboard,
+  getFuelUsageByGarage,
+  getTopDebtors,
+} from "@/lib/data/admin";
+import { formatMoney } from "@/lib/utils";
+import { KpiCard } from "@/app/components/dashboard/KpiCard";
+import { ActiveDriversTable } from "@/app/components/dashboard/ActiveDriversTable";
+import { FuelUsageByGarage } from "@/app/components/dashboard/FuelUsageByGarage";
+import { DebtBalanceOverview } from "@/app/components/dashboard/DebtBalanceOverview";
 
 export default async function AdminOverviewPage() {
-  const stats = await getAdminStats();
+  const [stats, activeDrivers, fuelUsage, topDebtors] = await Promise.all([
+    getAdminDashboardStats(),
+    getAdminActiveDriversForDashboard(),
+    getFuelUsageByGarage(),
+    getTopDebtors(5),
+  ]);
 
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-bold text-textdark">Overview</h1>
       <p className="text-textdark/60 mt-1">
-        A snapshot of your leads, submissions, clients and catalogue.
+        A snapshot of your fleet, fuel credit and repayments.
       </p>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-        <StatCard
-          label="Total Leads"
-          value={stats.leads}
-          href="/dashboard/admin/leads"
+        <KpiCard
+          label="Active Drivers"
+          value={String(stats.activeDrivers)}
+          icon={Users}
+          accent="navy"
         />
-        <StatCard
-          label="Submissions"
-          value={stats.submissions}
-          href="/dashboard/admin/submissions"
+        <KpiCard
+          label="Fuel Issued This Week"
+          value={formatMoney(stats.fuelIssuedThisWeek.amount)}
+          icon={Fuel}
+          sub={`${stats.fuelIssuedThisWeek.litres.toFixed(1)} L issued`}
+          accent="orange"
         />
-        <StatCard
-          label="Clients"
-          value={stats.drivers}
-          href="/dashboard/admin/drivers"
+        <KpiCard
+          label="Outstanding Fuel Credit"
+          value={formatMoney(stats.outstandingFuelCredit)}
+          icon={Wallet}
+          accent="success"
         />
-        <StatCard
-          label="Published Services"
-          value={stats.services}
-          href="/dashboard/admin/services"
+        <KpiCard
+          label="Repayment Rate"
+          value={`${stats.repaymentRate}%`}
+          icon={Percent}
+          accent="success"
+        />
+        <KpiCard
+          label="Active Repair Benefits"
+          value={String(stats.activeRepairBenefits)}
+          icon={Wrench}
+          accent="yellow"
+        />
+        <KpiCard
+          label="Repair Credit Outstanding"
+          value={formatMoney(stats.repairCreditOutstanding)}
+          icon={ShieldAlert}
+          accent="error"
+        />
+        <KpiCard
+          label="Vehicles Under Management"
+          value={String(stats.vehiclesUnderManagement)}
+          icon={Car}
+          accent="navy"
+        />
+        <KpiCard
+          label="Rental Vehicles"
+          value={String(stats.rentalVehicles)}
+          icon={Truck}
+          accent="orange"
         />
       </div>
 
-      <div className="space-y-6 mt-8">
-        <StatusBreakdown
-          title="Leads by status"
-          entries={Object.entries(stats.byStatus)}
-          emptyText="No leads yet."
-        />
-        <StatusBreakdown
-          title="Submissions by status"
-          entries={Object.entries(stats.bySubmissionStatus)}
-          emptyText="No submissions yet."
-        />
+      <section className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-textdark">Active Drivers</h2>
+          <Link
+            href="/dashboard/admin/drivers"
+            className="text-sm text-navy font-semibold hover:text-orange"
+          >
+            View all &rarr;
+          </Link>
+        </div>
+        <ActiveDriversTable drivers={activeDrivers} />
+      </section>
+
+      <div className="grid lg:grid-cols-2 gap-6 mt-8">
+        <FuelUsageByGarage data={fuelUsage} />
+        <DebtBalanceOverview debtors={topDebtors} />
       </div>
     </div>
   );

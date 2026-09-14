@@ -1,8 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
 import { getServices } from "@/lib/data/services";
 import { resolveIcon } from "@/lib/service-icons";
+import { resolveMetadata } from "@/lib/data/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return resolveMetadata("/services");
+}
 
 export default async function ServicesPage() {
   const services = (await getServices()).filter(

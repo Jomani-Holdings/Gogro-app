@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { MapPin, LifeBuoy, FileText } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { getClientLeadAndSubmissions } from "@/lib/data/client";
+import { getClientLeadAndSubmissions, getClientRequiredActions } from "@/lib/data/client";
+import { getClientDocumentsContext } from "@/lib/data/documents";
+import { ClientDocumentsUpload } from "@/app/components/dashboard/ClientDocumentsUpload";
+import { RequiredActions } from "@/app/components/dashboard/RequiredActions";
 
 const statusLabels: Record<string, string> = {
   new: "New",
@@ -9,6 +12,7 @@ const statusLabels: Record<string, string> = {
   form_sent: "Application Sent",
   form_started: "Application Started",
   submitted: "Submitted",
+  documents_requested: "Documents Requested",
   approved: "Approved",
   rejected: "Rejected",
   dormant: "Dormant",
@@ -20,6 +24,7 @@ const statusStyles: Record<string, string> = {
   form_sent: "bg-blue-600/10 text-blue-600",
   form_started: "bg-blue-600/10 text-blue-600",
   submitted: "bg-navy/10 text-navy",
+  documents_requested: "bg-yellow/30 text-textdark",
   approved: "bg-success/10 text-success",
   rejected: "bg-error/10 text-error",
   dormant: "bg-grey/40 text-textdark",
@@ -28,6 +33,10 @@ const statusStyles: Record<string, string> = {
 export default async function ClientHomePage() {
   const user = await requireUser();
   const { lead, submissions } = await getClientLeadAndSubmissions(user.id);
+  const { documents, contractDownloadUrl } = await getClientDocumentsContext(
+    user.id
+  );
+  const requiredActions = await getClientRequiredActions(user.id);
   const status = lead?.status ?? "new";
   const pending = submissions.find((s) => s.status === "pending" || s.status === "draft");
 
@@ -36,6 +45,8 @@ export default async function ClientHomePage() {
       <h1 className="text-2xl md:text-3xl font-bold text-textdark">
         Welcome back
       </h1>
+
+      <RequiredActions actions={requiredActions} />
 
       <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
         <div className="flex items-center justify-between">
@@ -71,9 +82,11 @@ export default async function ClientHomePage() {
                 ? "Great news — your application has been approved."
                 : status === "rejected"
                   ? "We weren't able to approve your application this time. Contact support if you have questions."
-                  : status === "submitted"
-                    ? "We're reviewing your application. We'll be in touch shortly."
-                    : "Our team is reviewing your enquiry and will be in touch."}
+                  : status === "documents_requested"
+                    ? "We need a few documents from you before we can continue. Please upload them below."
+                    : status === "submitted"
+                      ? "We're reviewing your application. We'll be in touch shortly."
+                      : "Our team is reviewing your enquiry and will be in touch."}
             </p>
           </div>
         )}
@@ -125,6 +138,22 @@ export default async function ClientHomePage() {
               </div>
             ))
           )}
+        </div>
+      </section>
+
+      <section
+        id="documents"
+        className="bg-white border border-grey/40 rounded-2xl p-6 mt-6"
+      >
+        <div className="flex items-center gap-3">
+          <FileText size={20} className="text-navy" />
+          <h2 className="text-lg font-semibold text-navy">My Documents</h2>
+        </div>
+        <div className="mt-4">
+          <ClientDocumentsUpload
+            documents={documents}
+            contractDownloadUrl={contractDownloadUrl}
+          />
         </div>
       </section>
 

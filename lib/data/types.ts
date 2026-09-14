@@ -31,6 +31,112 @@ export type Garage = {
   partner_type_id: string | null;
   active: boolean;
   sort_order: number;
+  image_path: string | null;
+  description: string | null;
+};
+
+export type VehicleStatus = "active" | "maintenance" | "off_road";
+
+export type VehicleOwnership = "own" | "rental" | "managed";
+
+export type Vehicle = {
+  id: string;
+  make_model: string;
+  registration: string;
+  driver_id: string | null;
+  driver_name: string | null;
+  owner_name: string | null;
+  category: string | null;
+  ownership_type: VehicleOwnership;
+  weekly_rental: number | null;
+  status: VehicleStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TransactionType =
+  | "fuel_issue"
+  | "repair_issue"
+  | "fuel_repayment"
+  | "repair_repayment"
+  | "rental_fee"
+  | "opening_balance"
+  | "balance_correction_increase"
+  | "balance_correction_decrease";
+
+export const TRANSACTION_TYPES: {
+  value: TransactionType;
+  label: string;
+  affectsLitres: boolean;
+}[] = [
+  { value: "fuel_issue", label: "Fuel Issue", affectsLitres: true },
+  { value: "repair_issue", label: "Repair Issue", affectsLitres: false },
+  { value: "fuel_repayment", label: "Fuel Repayment", affectsLitres: false },
+  { value: "repair_repayment", label: "Repair Repayment", affectsLitres: false },
+  { value: "rental_fee", label: "Rental Fee", affectsLitres: false },
+  { value: "opening_balance", label: "Opening Balance", affectsLitres: false },
+  { value: "balance_correction_increase", label: "Balance Correction (+)", affectsLitres: false },
+  { value: "balance_correction_decrease", label: "Balance Correction (−)", affectsLitres: false },
+];
+
+export const TRANSACTION_LABELS: Record<TransactionType, string> = {
+  fuel_issue: "Fuel Issue",
+  repair_issue: "Repair Issue",
+  fuel_repayment: "Fuel Repayment",
+  repair_repayment: "Repair Repayment",
+  rental_fee: "Rental Fee",
+  opening_balance: "Opening Balance",
+  balance_correction_increase: "Balance Correction (+)",
+  balance_correction_decrease: "Balance Correction (−)",
+};
+
+export type Transaction = {
+  id: string;
+  driver_id: string;
+  vehicle_id: string | null;
+  garage_id: string | null;
+  vehicle_name: string | null;
+  garage_name: string | null;
+  type: TransactionType;
+  amount: number;
+  litres: number | null;
+  created_at: string;
+};
+
+export type DashboardStats = {
+  activeDrivers: number;
+  fuelIssuedThisWeek: { amount: number; litres: number };
+  outstandingFuelCredit: number;
+  repaymentRate: number;
+  activeRepairBenefits: number;
+  repairCreditOutstanding: number;
+  vehiclesUnderManagement: number;
+  rentalVehicles: number;
+};
+
+export type DashboardActiveDriver = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  fuel_balance: number | null;
+  repair_balance: number | null;
+  vehicle: { id: string; make_model: string; registration: string } | null;
+  fuel_used_this_month: number;
+};
+
+export type FuelUsageByGarage = {
+  garage_id: string | null;
+  garage_name: string | null;
+  litres: number;
+  amount: number;
+};
+
+export type TopDebtor = {
+  id: string;
+  full_name: string | null;
+  fuel_balance: number | null;
+  repair_balance: number | null;
+  total_balance: number;
 };
 
 export type PageRecord = {
@@ -75,6 +181,7 @@ export type FormTemplate = {
   terms_content: JSONContent | null;
   confirmation_message: string | null;
   email_template_slug: string | null;
+  contract_document_path: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -121,4 +228,96 @@ export type Communication = {
   body: string | null;
   metadata: Record<string, unknown>;
   sent_at: string;
+};
+
+export type GalleryImage = {
+  id: string;
+  storage_path: string;
+  filename: string;
+  caption: string | null;
+  alt_text: string | null;
+  description: string | null;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SeoMeta = {
+  id: string;
+  route_path: string;
+  page_title: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
+  canonical_path: string | null;
+  noindex: boolean;
+  updated_at: string;
+};
+
+export type DocumentCategory =
+  | "id_copy"
+  | "license_disc"
+  | "vehicle_image"
+  | "uber_profile"
+  | "proof_of_residence"
+  | "selfie"
+  | "signed_contract";
+
+export const DOCUMENT_CATEGORIES: {
+  value: DocumentCategory;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "id_copy",
+    label: "Copy of ID / Passport",
+    description: "A clear copy of your South African ID or passport.",
+  },
+  {
+    value: "license_disc",
+    label: "Vehicle License Disc",
+    description: "A copy of your current vehicle license disc.",
+  },
+  {
+    value: "vehicle_image",
+    label: "Image of the Vehicle",
+    description: "A photo showing the vehicle.",
+  },
+  {
+    value: "uber_profile",
+    label: "Uber Profile Screenshot",
+    description: "A screenshot of your Uber profile with your personal details.",
+  },
+  {
+    value: "proof_of_residence",
+    label: "Proof of Residence",
+    description: "A recent proof of residence document.",
+  },
+  {
+    value: "selfie",
+    label: "Selfie for Driver Profile",
+    description: "A selfie image for your driver profile.",
+  },
+  {
+    value: "signed_contract",
+    label: "Signed Contract",
+    description: "Your signed contract agreement.",
+  },
+];
+
+export type Document = {
+  id: string;
+  lead_id: string | null;
+  user_id: string | null;
+  category: DocumentCategory;
+  filename: string;
+  storage_path: string;
+  status: "pending" | "approved" | "rejected";
+  uploaded_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 };

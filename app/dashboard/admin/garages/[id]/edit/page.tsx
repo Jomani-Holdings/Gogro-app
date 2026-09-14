@@ -31,6 +31,8 @@ export default async function EditGaragePage({
     partner_type_id: row.partner_type_id ? String(row.partner_type_id) : null,
     active: Boolean(row.active),
     sort_order: Number(row.sort_order ?? 0),
+    image_path: row.image_path ? String(row.image_path) : null,
+    description: row.description ? String(row.description) : null,
   };
 
   return (

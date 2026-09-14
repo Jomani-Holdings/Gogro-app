@@ -5,6 +5,9 @@ import { revalidatePath } from "next/cache";
 import type { JSONContent } from "@tiptap/core";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DOCUMENTS_BUCKET, slugifyFilename } from "@/lib/media";
+
+export const MAX_CONTRACT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
@@ -137,9 +140,16 @@ export async function saveFormTemplate(formData: FormData): Promise<void> {
     updated_at: new Date().toISOString(),
   };
 
+  let formId = id;
+
   if (id === "new") {
-    const { error } = await admin.from("form_templates").insert(patch);
+    const { data: inserted, error } = await admin
+      .from("form_templates")
+      .insert(patch)
+      .select("id")
+      .single();
     if (error) throw new Error(error.message);
+    formId = String(inserted?.id ?? "");
   } else {
     const { error } = await admin
       .from("form_templates")
@@ -148,8 +158,78 @@ export async function saveFormTemplate(formData: FormData): Promise<void> {
     if (error) throw new Error(error.message);
   }
 
+  await handleContractDocument(admin, formId, formData);
+
   revalidatePath("/dashboard/admin/forms");
   redirect("/dashboard/admin/forms");
+}
+
+async function handleContractDocument(
+  admin: ReturnType<typeof createAdminClient>,
+  formId: string,
+  formData: FormData
+) {
+  const remove = formData.get("remove_contract") === "on";
+  const file = formData.get("contract_document");
+
+  if (remove) {
+    const { data: existing } = await admin
+      .from("form_templates")
+      .select("contract_document_path")
+      .eq("id", formId)
+      .maybeSingle();
+    if (existing?.contract_document_path) {
+      await admin.storage
+        .from(DOCUMENTS_BUCKET)
+        .remove([String(existing.contract_document_path)]);
+    }
+    await admin
+      .from("form_templates")
+      .update({ contract_document_path: null })
+      .eq("id", formId);
+    return;
+  }
+
+  if (!(file instanceof File) || file.size === 0) return;
+
+  if (file.size > MAX_CONTRACT_FILE_SIZE) {
+    throw new Error("Contract PDF is larger than the 5MB limit.");
+  }
+  if (file.type !== "application/pdf") {
+    throw new Error("Contract must be a PDF file.");
+  }
+
+  const storagePath = `documents/contracts/${formId}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  const { error: uploadError } = await admin.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(storagePath, bytes, {
+      contentType: "application/pdf",
+      cacheControl: "3600",
+      upsert: false,
+    });
+  if (uploadError) throw new Error(uploadError.message);
+
+  const { data: existing } = await admin
+    .from("form_templates")
+    .select("contract_document_path")
+    .eq("id", formId)
+    .maybeSingle();
+  if (existing?.contract_document_path) {
+    await admin.storage
+      .from(DOCUMENTS_BUCKET)
+      .remove([String(existing.contract_document_path)]);
+  }
+
+  const { error } = await admin
+    .from("form_templates")
+    .update({ contract_document_path: storagePath })
+    .eq("id", formId);
+  if (error) {
+    await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
+    throw new Error(error.message);
+  }
 }
 
 export async function deleteFormTemplate(id: string): Promise<void> {

@@ -68,6 +68,12 @@ export function Header() {
               {nav.services.label}
             </Link>
             <Link
+              href={nav.gallery.href}
+              className="text-offwhite hover:text-orange font-medium"
+            >
+              {nav.gallery.label}
+            </Link>
+            <Link
               href={nav.rewards.href}
               className="text-offwhite hover:text-orange font-medium"
             >

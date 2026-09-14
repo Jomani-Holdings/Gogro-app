@@ -1,12 +1,34 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { PageHero } from "@/app/components/PageHero";
 import { GarageGrid } from "@/app/components/partners/GarageGrid";
 import { getPartnerTypes, getPartnerTypeBySlug } from "@/lib/data/partner-types";
 import { getGaragesByTypeSlug } from "@/lib/data/garages";
+import { getSeoMeta } from "@/lib/data/seo";
 
 export async function generateStaticParams() {
   const types = await getPartnerTypes();
   return types.map((type) => ({ partnertype: type.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ partnertype: string }>;
+}): Promise<Metadata> {
+  const { partnertype } = await params;
+  const type = await getPartnerTypeBySlug(partnertype);
+  if (!type) return {};
+  const routePath = `/partners/${partnertype}`;
+  const seo = await getSeoMeta(routePath);
+  return {
+    title: seo?.meta_title ?? `${type.name} | Go Gro Mobility`,
+    description: seo?.meta_description ?? type.description ?? undefined,
+    robots: {
+      index: seo ? !seo.noindex : true,
+      follow: true,
+    },
+  };
 }
 
 export default async function PartnerTypePage({
@@ -39,7 +61,7 @@ export default async function PartnerTypePage({
         </p>
 
         {garages.length > 0 ? (
-          <GarageGrid garages={garages} />
+          <GarageGrid garages={garages} partnerTypeSlug={type.slug} />
         ) : (
           <div className="bg-white border border-grey/40 rounded-xl p-10 text-center text-textdark/60 mt-6">
             We&apos;re onboarding partners in this category. Check back soon.

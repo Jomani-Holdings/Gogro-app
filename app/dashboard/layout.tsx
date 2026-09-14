@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { DashboardShell } from "@/app/components/dashboard/DashboardShell";
-import { adminNav, clientNav } from "@/lib/dashboard-nav";
+import { SuspendedScreen } from "@/app/components/dashboard/SuspendedScreen";
+import { adminNav, adminSiteGroup, clientNav } from "@/lib/dashboard-nav";
 
 export default async function DashboardLayout({
   children,
@@ -12,11 +13,16 @@ export default async function DashboardLayout({
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
 
+  if (profile.suspended && profile.role === "client") {
+    return <SuspendedScreen />;
+  }
+
   const isAdmin = profile.role === "admin";
 
   return (
     <DashboardShell
       navItems={isAdmin ? adminNav : clientNav}
+      navGroups={isAdmin ? [adminSiteGroup] : undefined}
       role={profile.role}
       fullName={profile.full_name}
       email={profile.email}

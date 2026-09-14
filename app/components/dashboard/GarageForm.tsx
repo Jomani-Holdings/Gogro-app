@@ -1,5 +1,12 @@
+"use client";
+
+import { useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { saveGarage } from "@/app/dashboard/admin/cms-actions";
+import {
+  saveGarage,
+} from "@/app/dashboard/admin/cms-actions";
+import { mediaUrl, MAX_GARAGE_IMAGE_SIZE } from "@/lib/media";
 import type { PartnerType } from "@/lib/data/types";
 
 const inputClass =
@@ -16,6 +23,8 @@ type GarageData = {
   partner_type_id: string | null;
   active: boolean;
   sort_order: number;
+  image_path: string | null;
+  description: string | null;
 };
 
 export function GarageForm({
@@ -27,16 +36,67 @@ export function GarageForm({
   types: PartnerType[];
   isNew: boolean;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const existingImagePath = garage?.image_path ?? null;
+  const currentPreview = file
+    ? URL.createObjectURL(file)
+    : !removeImage && existingImagePath
+      ? mediaUrl(existingImagePath)
+      : null;
+
+  function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setFileError(null);
+    if (selected) {
+      if (selected.size > MAX_GARAGE_IMAGE_SIZE) {
+        setFileError("Image is larger than the 5MB limit.");
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      if (!selected.type.startsWith("image/")) {
+        setFileError("Please choose an image file.");
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    }
+    setFile(selected);
+  }
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    const formData = new FormData(event.currentTarget as HTMLFormElement);
+    if (existingImagePath) formData.append("existing_image_path", existingImagePath);
+    if (removeImage) formData.append("remove_image", "on");
+    if (file) formData.append("image", file);
+
+    try {
+      await saveGarage(formData);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      );
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <form
-      action={saveGarage}
-      className="bg-white border border-grey/40 rounded-2xl p-6 max-w-xl space-y-5"
-    >
-      <input
-        type="hidden"
-        name="id"
-        value={isNew ? "new" : (garage?.id ?? "new")}
-      />
+    <form onSubmit={onSubmit} className="bg-white border border-grey/40 rounded-2xl p-6 max-w-xl space-y-5">
+      {error ? (
+        <p className="rounded-lg bg-error/10 border border-error/30 px-4 py-3 text-sm text-error">
+          {error}
+        </p>
+      ) : null}
 
       <div>
         <label htmlFor="name" className={labelClass}>
@@ -97,6 +157,65 @@ export function GarageForm({
         />
       </div>
 
+      <div>
+        <label htmlFor="image" className={labelClass}>
+          Image {isNew ? "(optional)" : "(leave empty to keep current image)"}
+        </label>
+        <input
+          ref={fileInputRef}
+          id="image"
+          name="image"
+          type="file"
+          accept="image/*"
+          onChange={onFileChange}
+          className="block w-full text-sm text-textdark file:mr-4 file:rounded-lg file:border-0 file:bg-navy file:px-4 file:py-3 file:text-sm file:font-semibold file:text-white hover:file:bg-navy/90"
+        />
+        {fileError ? (
+          <p className="mt-2 text-sm text-error">{fileError}</p>
+        ) : null}
+        {currentPreview ? (
+          <div className="relative mt-4 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-grey/40 bg-offwhite">
+            <Image
+              src={currentPreview}
+              alt={`${garage?.name ?? "Garage"} image preview`}
+              fill
+              className="object-cover"
+              sizes="(max-width: 384px) 100vw, 384px"
+            />
+          </div>
+        ) : (
+          <div className="mt-4 aspect-video w-full max-w-sm rounded-xl border border-dashed border-grey/60 bg-offwhite flex items-center justify-center text-sm text-textdark/50">
+            No image
+          </div>
+        )}
+        {existingImagePath && !file ? (
+          <label className="flex items-center gap-2 mt-3 text-sm text-textdark">
+            <input
+              type="checkbox"
+              name="remove_image"
+              checked={removeImage}
+              onChange={(event) => setRemoveImage(event.target.checked)}
+              className="h-4 w-4 accent-orange"
+            />
+            Remove current image
+          </label>
+        ) : null}
+      </div>
+
+      <div>
+        <label htmlFor="description" className={labelClass}>
+          Description
+        </label>
+        <textarea
+          id="description"
+          name="description"
+          rows={4}
+          defaultValue={garage?.description ?? ""}
+          placeholder="Services, accreditation or any other notes about this partner."
+          className={inputClass}
+        />
+      </div>
+
       <div className="grid sm:grid-cols-2 gap-5">
         <div>
           <label htmlFor="latitude" className={labelClass}>
@@ -153,9 +272,10 @@ export function GarageForm({
       <div className="flex gap-3">
         <button
           type="submit"
-          className="inline-flex items-center justify-center rounded-lg bg-orange text-white font-semibold py-3 px-6 transition-colors hover:bg-orange/90"
+          disabled={submitting}
+          className="inline-flex items-center justify-center rounded-lg bg-orange text-white font-semibold py-3 px-6 transition-colors hover:bg-orange/90 disabled:opacity-60"
         >
-          Save garage
+          {submitting ? "Saving…" : "Save garage"}
         </button>
         <Link
           href="/dashboard/admin/garages"

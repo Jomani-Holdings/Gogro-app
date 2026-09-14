@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { GALLERY_BUCKET, MAX_GARAGE_IMAGE_SIZE, slugifyFilename } from "@/lib/media";
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
@@ -128,31 +129,88 @@ export async function savePartnerType(formData: FormData): Promise<void> {
   redirect("/dashboard/admin/partner-types");
 }
 
+function garageImageKey(garageId: string, fileName: string): string {
+  return `${GALLERY_BUCKET}/garages/${garageId}/${crypto.randomUUID()}-${slugifyFilename(fileName)}`;
+}
+
 export async function saveGarage(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
+  const isNew = id === "new" || !id;
   const admin = createAdminClient();
 
-  const patch = {
+  const rawFile = formData.get("image");
+  const file = rawFile instanceof File ? rawFile : null;
+  const removeImage = formData.get("remove_image") === "on";
+  const existingImagePath = clean(formData.get("existing_image_path"));
+
+  if (file && file.size > 0) {
+    if (file.size > MAX_GARAGE_IMAGE_SIZE) {
+      throw new Error("Image is larger than the 5MB limit.");
+    }
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Please choose an image file.");
+    }
+  }
+
+  const garageId = isNew ? crypto.randomUUID() : id;
+
+  let newImagePath: string | null = null;
+  if (file && file.size > 0) {
+    newImagePath = garageImageKey(garageId, file.name);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const { error: uploadError } = await admin.storage
+      .from(GALLERY_BUCKET)
+      .upload(newImagePath, bytes, {
+        contentType: file.type,
+        cacheControl: "31536000",
+        upsert: false,
+      });
+    if (uploadError) throw new Error(uploadError.message);
+  }
+
+  const patch: Record<string, unknown> = {
     name: String(formData.get("name") ?? "").trim(),
     address: clean(formData.get("address")),
     phone: clean(formData.get("phone")),
-    latitude: formData.get("latitude")
-      ? Number(formData.get("latitude"))
-      : null,
+    latitude: formData.get("latitude") ? Number(formData.get("latitude")) : null,
     longitude: formData.get("longitude")
       ? Number(formData.get("longitude"))
       : null,
     partner_type_id: clean(formData.get("partner_type_id")),
     active: formData.get("active") === "on",
     sort_order: Number(formData.get("sort_order") ?? 0),
+    description: clean(formData.get("description")),
   };
 
-  if (id === "new") {
-    const { error } = await admin.from("garages").insert(patch);
-    if (error) throw new Error(error.message);
+  if (newImagePath) {
+    patch.image_path = newImagePath;
+  } else if (removeImage) {
+    patch.image_path = null;
+  }
+
+  if (isNew) {
+    const { error } = await admin.from("garages").insert({
+      id: garageId,
+      ...patch,
+    });
+    if (error) {
+      if (newImagePath) {
+        await admin.storage.from(GALLERY_BUCKET).remove([newImagePath]);
+      }
+      throw new Error(error.message);
+    }
   } else {
     const { error } = await admin.from("garages").update(patch).eq("id", id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (newImagePath) {
+        await admin.storage.from(GALLERY_BUCKET).remove([newImagePath]);
+      }
+      throw new Error(error.message);
+    }
+  }
+
+  if ((newImagePath || removeImage) && existingImagePath) {
+    await admin.storage.from(GALLERY_BUCKET).remove([existingImagePath]);
   }
 
   revalidatePath("/dashboard/admin/garages");
@@ -177,7 +235,21 @@ export async function deletePartnerType(id: string): Promise<void> {
 
 export async function deleteGarage(id: string): Promise<void> {
   const admin = createAdminClient();
-  await admin.from("garages").delete().eq("id", id);
+
+  const { data, error: fetchError } = await admin
+    .from("garages")
+    .select("image_path")
+    .eq("id", id)
+    .maybeSingle();
+  if (fetchError || !data) throw new Error(fetchError?.message ?? "Not found");
+
+  const { error } = await admin.from("garages").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+
+  if (data.image_path) {
+    await admin.storage.from(GALLERY_BUCKET).remove([data.image_path]);
+  }
+
   revalidatePath("/dashboard/admin/garages");
   redirect("/dashboard/admin/garages");
 }

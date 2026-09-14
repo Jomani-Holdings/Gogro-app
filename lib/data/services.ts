@@ -62,7 +62,7 @@ export const FALLBACK_SERVICES: Service[] = [
       "Minimise downtime",
       "Quality-assured work",
     ],
-    detail_content: null,
+    detail_content: FALLBACK_SERVICE_DETAILS["vehicle-repairs"],
     sort_order: 4,
     status: "published",
   },
