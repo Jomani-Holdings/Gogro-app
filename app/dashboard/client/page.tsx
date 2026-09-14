@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { MapPin, LifeBuoy, FileText } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { getClientLeadAndSubmissions } from "@/lib/data/client";
+import { getClientLeadAndSubmissions, getClientRequiredActions } from "@/lib/data/client";
 import { getClientDocumentsContext } from "@/lib/data/documents";
 import { ClientDocumentsUpload } from "@/app/components/dashboard/ClientDocumentsUpload";
+import { RequiredActions } from "@/app/components/dashboard/RequiredActions";
 
 const statusLabels: Record<string, string> = {
   new: "New",
@@ -35,6 +36,7 @@ export default async function ClientHomePage() {
   const { documents, contractDownloadUrl } = await getClientDocumentsContext(
     user.id
   );
+  const requiredActions = await getClientRequiredActions(user.id);
   const status = lead?.status ?? "new";
   const pending = submissions.find((s) => s.status === "pending" || s.status === "draft");
 
@@ -43,6 +45,8 @@ export default async function ClientHomePage() {
       <h1 className="text-2xl md:text-3xl font-bold text-textdark">
         Welcome back
       </h1>
+
+      <RequiredActions actions={requiredActions} />
 
       <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
         <div className="flex items-center justify-between">
@@ -137,7 +141,10 @@ export default async function ClientHomePage() {
         </div>
       </section>
 
-      <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
+      <section
+        id="documents"
+        className="bg-white border border-grey/40 rounded-2xl p-6 mt-6"
+      >
         <div className="flex items-center gap-3">
           <FileText size={20} className="text-navy" />
           <h2 className="text-lg font-semibold text-navy">My Documents</h2>

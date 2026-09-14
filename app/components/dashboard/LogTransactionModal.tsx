@@ -1,0 +1,277 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
+import { logTransaction } from "@/app/dashboard/admin/transactions/actions";
+import {
+  TRANSACTION_TYPES,
+  type TransactionType,
+} from "@/lib/data/types";
+
+const inputClass =
+  "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
+const labelClass = "block text-sm font-semibold text-textdark mb-1.5";
+
+export function LogTransactionModal({
+  driverId,
+  driverName,
+  vehicles,
+  garages,
+  defaultType = "fuel_issue",
+  triggerLabel = "Log Transaction",
+  triggerClassName,
+}: {
+  driverId: string;
+  driverName: string | null;
+  vehicles: { id: string; make_model: string; registration: string }[];
+  garages: { id: string; name: string }[];
+  defaultType?: TransactionType;
+  triggerLabel?: string;
+  triggerClassName?: string;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [type, setType] = useState<TransactionType>(defaultType);
+  const [amount, setAmount] = useState<string>("");
+  const [litres, setLitres] = useState<string>("");
+  const [vehicleId, setVehicleId] = useState<string>("");
+  const [garageId, setGarageId] = useState<string>("");
+  const [createdAt, setCreatedAt] = useState<string>("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [confirmOverride, setConfirmOverride] = useState(false);
+
+  const currentType = TRANSACTION_TYPES.find((t) => t.value === type);
+
+  function openModal() {
+    setType(defaultType);
+    setAmount("");
+    setLitres("");
+    setVehicleId("");
+    setGarageId("");
+    setCreatedAt("");
+    setError(null);
+    setWarning(null);
+    setConfirmOverride(false);
+    setOpen(true);
+  }
+
+  function submit(override = false) {
+    setError(null);
+    const formData = new FormData();
+    formData.append("driver_id", driverId);
+    formData.append("type", type);
+    formData.append("amount", amount);
+    formData.append("litres", litres);
+    formData.append("vehicle_id", vehicleId);
+    formData.append("garage_id", garageId);
+    formData.append("created_at", createdAt);
+    if (override) formData.append("confirm_override", "on");
+
+    startTransition(async () => {
+      const result = await logTransaction(formData);
+      if (!result.ok) {
+        if (result.requiresConfirmation && result.warning) {
+          setWarning(result.warning);
+          setConfirmOverride(true);
+          return;
+        }
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      setOpen(false);
+      setConfirmOverride(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={openModal}
+        className={
+          triggerClassName ??
+          "inline-flex items-center justify-center rounded-lg bg-navy text-white font-semibold py-3 px-5 hover:bg-navy/90"
+        }
+      >
+        {triggerLabel}
+      </button>
+
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-grey/40">
+              <h2 className="text-lg font-bold text-textdark">
+                Log Transaction
+              </h2>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="p-1 rounded-md text-textdark/60 hover:bg-grey/20"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 max-h-[60vh] overflow-y-auto space-y-5">
+              {error ? (
+                <p className="rounded-lg bg-error/10 border border-error/30 px-4 py-3 text-sm text-error">
+                  {error}
+                </p>
+              ) : null}
+              {warning ? (
+                <p className="rounded-lg bg-yellow/20 border border-yellow/50 px-4 py-3 text-sm text-textdark">
+                  {warning}
+                </p>
+              ) : null}
+              <p className="text-sm text-textdark/70">
+                Recording a transaction for{" "}
+                <span className="font-semibold text-textdark">
+                  {driverName ?? "this driver"}
+                </span>
+                .
+                {type === "opening_balance" || type === "rental_fee"
+                  ? " This is recorded for reference only and does not change the driver's balance."
+                  : " Balances update automatically."}
+              </p>
+
+              <div>
+                <label htmlFor="transaction_type" className={labelClass}>
+                  Type
+                </label>
+                <select
+                  id="transaction_type"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as TransactionType)}
+                  className={inputClass}
+                >
+                  {TRANSACTION_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="transaction_amount" className={labelClass}>
+                    Amount (R)
+                  </label>
+                  <input
+                    id="transaction_amount"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className={inputClass}
+                    placeholder="0.00"
+                  />
+                </div>
+                {currentType?.affectsLitres ? (
+                  <div>
+                    <label htmlFor="transaction_litres" className={labelClass}>
+                      Litres
+                    </label>
+                    <input
+                      id="transaction_litres"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={litres}
+                      onChange={(e) => setLitres(e.target.value)}
+                      className={inputClass}
+                      placeholder="0.00"
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <div>
+                <label htmlFor="transaction_vehicle" className={labelClass}>
+                  Vehicle <span className="font-normal text-textdark/50">(optional)</span>
+                </label>
+                <select
+                  id="transaction_vehicle"
+                  value={vehicleId}
+                  onChange={(e) => setVehicleId(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">None</option>
+                  {vehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.make_model} — {vehicle.registration}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="transaction_garage" className={labelClass}>
+                  Garage <span className="font-normal text-textdark/50">(optional)</span>
+                </label>
+                <select
+                  id="transaction_garage"
+                  value={garageId}
+                  onChange={(e) => setGarageId(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">None</option>
+                  {garages.map((garage) => (
+                    <option key={garage.id} value={garage.id}>
+                      {garage.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="transaction_created" className={labelClass}>
+                  Date / Time <span className="font-normal text-textdark/50">(defaults to now)</span>
+                </label>
+                <input
+                  id="transaction_created"
+                  type="datetime-local"
+                  value={createdAt}
+                  onChange={(e) => setCreatedAt(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-grey/40">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg border border-grey/60 text-textdark font-semibold py-2.5 px-5 hover:bg-grey/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pending || !amount}
+                onClick={() => submit(confirmOverride)}
+                className="rounded-lg bg-orange text-white font-semibold py-2.5 px-5 hover:bg-orange/90 disabled:opacity-60"
+              >
+                {pending
+                  ? "Saving…"
+                  : confirmOverride
+                    ? "Log anyway"
+                    : "Record transaction"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}

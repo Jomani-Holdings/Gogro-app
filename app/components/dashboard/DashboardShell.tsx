@@ -24,6 +24,7 @@ import {
   Images,
   Search,
   Car,
+  Receipt,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -48,6 +49,7 @@ const iconMap: Record<string, LucideIcon> = {
   Images,
   Search,
   Car,
+  Receipt,
 };
 
 export function DashboardShell({
@@ -109,7 +111,7 @@ export function DashboardShell({
         {roleLabel}
       </p>
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+      <nav className="flex-1 overflow-y-auto px-3 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <ul className="flex flex-col gap-1">
           {navItems.map((item) => {
             const Icon = iconMap[item.icon] ?? LayoutDashboard;
@@ -196,20 +198,6 @@ export function DashboardShell({
           })}
         </ul>
       </nav>
-
-      <div className="border-t border-white/10 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center justify-center h-9 w-9 rounded-full border border-white/20 text-white shrink-0">
-            <User size={16} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">
-              {fullName || "Account"}
-            </p>
-            <p className="text-xs text-white/50 truncate">{email ?? ""}</p>
-          </div>
-        </div>
-      </div>
 
       <div className="border-t border-white/10 p-3 flex flex-col gap-1">
         <Link

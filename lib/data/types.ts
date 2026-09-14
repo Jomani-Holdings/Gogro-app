@@ -37,6 +37,8 @@ export type Garage = {
 
 export type VehicleStatus = "active" | "maintenance" | "off_road";
 
+export type VehicleOwnership = "own" | "rental" | "managed";
+
 export type Vehicle = {
   id: string;
   make_model: string;
@@ -45,10 +47,96 @@ export type Vehicle = {
   driver_name: string | null;
   owner_name: string | null;
   category: string | null;
+  ownership_type: VehicleOwnership;
   weekly_rental: number | null;
   status: VehicleStatus;
   created_at: string;
   updated_at: string;
+};
+
+export type TransactionType =
+  | "fuel_issue"
+  | "repair_issue"
+  | "fuel_repayment"
+  | "repair_repayment"
+  | "rental_fee"
+  | "opening_balance"
+  | "balance_correction_increase"
+  | "balance_correction_decrease";
+
+export const TRANSACTION_TYPES: {
+  value: TransactionType;
+  label: string;
+  affectsLitres: boolean;
+}[] = [
+  { value: "fuel_issue", label: "Fuel Issue", affectsLitres: true },
+  { value: "repair_issue", label: "Repair Issue", affectsLitres: false },
+  { value: "fuel_repayment", label: "Fuel Repayment", affectsLitres: false },
+  { value: "repair_repayment", label: "Repair Repayment", affectsLitres: false },
+  { value: "rental_fee", label: "Rental Fee", affectsLitres: false },
+  { value: "opening_balance", label: "Opening Balance", affectsLitres: false },
+  { value: "balance_correction_increase", label: "Balance Correction (+)", affectsLitres: false },
+  { value: "balance_correction_decrease", label: "Balance Correction (−)", affectsLitres: false },
+];
+
+export const TRANSACTION_LABELS: Record<TransactionType, string> = {
+  fuel_issue: "Fuel Issue",
+  repair_issue: "Repair Issue",
+  fuel_repayment: "Fuel Repayment",
+  repair_repayment: "Repair Repayment",
+  rental_fee: "Rental Fee",
+  opening_balance: "Opening Balance",
+  balance_correction_increase: "Balance Correction (+)",
+  balance_correction_decrease: "Balance Correction (−)",
+};
+
+export type Transaction = {
+  id: string;
+  driver_id: string;
+  vehicle_id: string | null;
+  garage_id: string | null;
+  vehicle_name: string | null;
+  garage_name: string | null;
+  type: TransactionType;
+  amount: number;
+  litres: number | null;
+  created_at: string;
+};
+
+export type DashboardStats = {
+  activeDrivers: number;
+  fuelIssuedThisWeek: { amount: number; litres: number };
+  outstandingFuelCredit: number;
+  repaymentRate: number;
+  activeRepairBenefits: number;
+  repairCreditOutstanding: number;
+  vehiclesUnderManagement: number;
+  rentalVehicles: number;
+};
+
+export type DashboardActiveDriver = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  fuel_balance: number | null;
+  repair_balance: number | null;
+  vehicle: { id: string; make_model: string; registration: string } | null;
+  fuel_used_this_month: number;
+};
+
+export type FuelUsageByGarage = {
+  garage_id: string | null;
+  garage_name: string | null;
+  litres: number;
+  amount: number;
+};
+
+export type TopDebtor = {
+  id: string;
+  full_name: string | null;
+  fuel_balance: number | null;
+  repair_balance: number | null;
+  total_balance: number;
 };
 
 export type PageRecord = {

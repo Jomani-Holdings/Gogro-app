@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Resend } from "resend";
+import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTemplateBySlug, sendEmail } from "@/lib/mail";
 import { DOCUMENTS_BUCKET, slugifyFilename } from "@/lib/media";
 import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/lib/data/types";
 
@@ -41,7 +44,7 @@ export async function uploadClientDocument(
 
   const { data: lead } = await admin
     .from("leads")
-    .select("id")
+    .select("id, full_name")
     .eq("user_id", user.id)
     .maybeSingle();
   const leadId = lead?.id ? String(lead.id) : null;
@@ -71,6 +74,31 @@ export async function uploadClientDocument(
   if (error) {
     await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
     return { ok: false, error: error.message };
+  }
+
+  if (category === "signed_contract") {
+    const apiKey = process.env.RESEND_API_KEY;
+    const notifyTo = process.env.TEAM_NOTIFICATION_EMAIL;
+    if (apiKey && notifyTo) {
+      const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+      const reviewLink = leadId
+        ? `${baseUrl}/dashboard/admin/leads/${leadId}`
+        : `${baseUrl}/dashboard/admin/drivers`;
+      const resend = new Resend(apiKey);
+      const template = await getTemplateBySlug(admin, "contract_signed_admin");
+      const variables: EmailVariables = {
+        "client.name": lead?.full_name ?? user.email ?? "A client",
+        "admin.reviewLink": reviewLink,
+      };
+      await sendEmail({
+        resend,
+        template,
+        to: notifyTo,
+        subjectFallback: `Signed contract uploaded: ${lead?.full_name ?? user.email ?? "client"}`,
+        htmlFallback: `<h2>Signed contract received</h2><p>${escapeHtml(lead?.full_name ?? "A client")} has uploaded a signed contract.</p>${emailButton(reviewLink, "Review signed contract")}`,
+        variables,
+      });
+    }
   }
 
   revalidatePath("/dashboard/client");

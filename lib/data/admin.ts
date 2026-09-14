@@ -14,6 +14,12 @@ import type {
   SeoMeta,
   Vehicle,
   VehicleStatus,
+  Transaction,
+  TransactionType,
+  DashboardStats,
+  DashboardActiveDriver,
+  FuelUsageByGarage,
+  TopDebtor,
 } from "@/lib/data/types";
 
 export type EmailTemplate = {
@@ -64,6 +70,7 @@ export type AdminDriver = {
   car_registration: string | null;
   credit_limit: number | null;
   fuel_balance: number | null;
+  repair_balance: number | null;
   fuel_code: string | null;
   fuel_garage_id: string | null;
   fuel_garage_name: string | null;
@@ -180,6 +187,10 @@ function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
       row.fuel_balance === null || row.fuel_balance === undefined
         ? null
         : Number(row.fuel_balance),
+    repair_balance:
+      row.repair_balance === null || row.repair_balance === undefined
+        ? null
+        : Number(row.repair_balance),
     fuel_code: row.fuel_code ? String(row.fuel_code) : null,
     fuel_garage_id: row.fuel_garage_id ? String(row.fuel_garage_id) : null,
     fuel_garage_name: garage?.name ?? null,
@@ -310,6 +321,24 @@ export async function getAdminVehicleDriverOptions(): Promise<
   }));
 }
 
+export async function getAdminDriverVehicles(
+  driverId: string
+): Promise<{ id: string; make_model: string; registration: string }[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("vehicles")
+    .select("id, make_model, registration")
+    .eq("driver_id", driverId)
+    .order("make_model");
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+    id: String(row.id),
+    make_model: String(row.make_model ?? ""),
+    registration: String(row.registration ?? ""),
+  }));
+}
+
 function mapVehicle(row: Record<string, unknown>): Vehicle {
   const driver = (row.profiles as { full_name?: string | null } | null) ?? null;
   return {
@@ -320,6 +349,9 @@ function mapVehicle(row: Record<string, unknown>): Vehicle {
     driver_name: driver?.full_name ?? null,
     owner_name: row.owner_name ? String(row.owner_name) : null,
     category: row.category ? String(row.category) : null,
+    ownership_type: (row.ownership_type
+      ? String(row.ownership_type)
+      : "managed") as Vehicle["ownership_type"],
     weekly_rental:
       row.weekly_rental === null || row.weekly_rental === undefined
         ? null
@@ -351,6 +383,313 @@ export async function getAdminVehicle(id: string): Promise<Vehicle | null> {
 
   if (error || !data) return null;
   return mapVehicle(data as Record<string, unknown>);
+}
+
+function startOfMonth(): string {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return start.toISOString();
+}
+
+function startOfWeek(): string {
+  const now = new Date();
+  const day = (now.getDay() + 6) % 7;
+  const start = new Date(now);
+  start.setDate(now.getDate() - day);
+  start.setHours(0, 0, 0, 0);
+  return start.toISOString();
+}
+
+export async function getAdminDashboardStats(): Promise<DashboardStats> {
+  const supabase = createAdminClient();
+  const weekStart = startOfWeek();
+
+  const [
+    activeDriversRes,
+    fuelIssuedWeekRes,
+    outstandingFuelRes,
+    repaymentsRes,
+    issuedRes,
+    repairBenefitsRes,
+    repairOutstandingRes,
+    vehiclesRes,
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id")
+      .eq("driver_status", "active"),
+    supabase
+      .from("transactions")
+      .select("amount, litres")
+      .eq("type", "fuel_issue")
+      .gte("created_at", weekStart),
+    supabase
+      .from("profiles")
+      .select("fuel_balance")
+      .eq("driver_status", "active"),
+    supabase
+      .from("transactions")
+      .select("amount")
+      .in("type", ["fuel_repayment", "repair_repayment"]),
+    supabase
+      .from("transactions")
+      .select("amount")
+      .in("type", ["fuel_issue", "repair_issue"]),
+    supabase
+      .from("profiles")
+      .select("id")
+      .gt("repair_balance", 0),
+    supabase.from("profiles").select("repair_balance"),
+    supabase
+      .from("vehicles")
+      .select("id, ownership_type")
+      .eq("status", "active"),
+  ]);
+
+  const activeDrivers = activeDriversRes.data?.length ?? 0;
+
+  const fuelIssuedThisWeek = {
+    amount: Number(
+      (fuelIssuedWeekRes.data ?? []).reduce(
+        (sum, t) => sum + Number(t.amount ?? 0),
+        0
+      )
+    ),
+    litres: Number(
+      (fuelIssuedWeekRes.data ?? []).reduce(
+        (sum, t) => sum + Number(t.litres ?? 0),
+        0
+      )
+    ),
+  };
+
+  const outstandingFuelCredit = Number(
+    (outstandingFuelRes.data ?? []).reduce(
+      (sum, p) => sum + Number(p.fuel_balance ?? 0),
+      0
+    )
+  );
+
+  const totalRepaid = Number(
+    (repaymentsRes.data ?? []).reduce(
+      (sum, t) => sum + Number(t.amount ?? 0),
+      0
+    )
+  );
+  const totalIssued = Number(
+    (issuedRes.data ?? []).reduce((sum, t) => sum + Number(t.amount ?? 0), 0)
+  );
+  const repaymentRate =
+    totalIssued > 0 ? Math.round((totalRepaid / totalIssued) * 100) : 0;
+
+  const activeRepairBenefits = repairBenefitsRes.data?.length ?? 0;
+
+  const repairCreditOutstanding = Number(
+    (repairOutstandingRes.data ?? []).reduce(
+      (sum, p) => sum + Number(p.repair_balance ?? 0),
+      0
+    )
+  );
+
+  const activeVehicles = (vehiclesRes.data ?? []) as {
+    ownership_type: string | null;
+  }[];
+  const rentalVehicles = activeVehicles.filter(
+    (v) => v.ownership_type === "rental"
+  ).length;
+  const vehiclesUnderManagement = activeVehicles.filter(
+    (v) => v.ownership_type === "managed" || v.ownership_type === "own"
+  ).length;
+
+  return {
+    activeDrivers,
+    fuelIssuedThisWeek,
+    outstandingFuelCredit,
+    repaymentRate,
+    activeRepairBenefits,
+    repairCreditOutstanding,
+    vehiclesUnderManagement,
+    rentalVehicles,
+  };
+}
+
+export async function getAdminActiveDriversForDashboard(): Promise<
+  DashboardActiveDriver[]
+> {
+  const supabase = createAdminClient();
+  const monthStart = startOfMonth();
+
+  const [profilesRes, fuelRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "id, full_name, email, driver_status, fuel_balance, repair_balance, vehicles(id, make_model, registration, status)"
+      )
+      .eq("driver_status", "active")
+      .order("full_name"),
+    supabase
+      .from("transactions")
+      .select("driver_id, litres")
+      .eq("type", "fuel_issue")
+      .gte("created_at", monthStart),
+  ]);
+
+  const fuelByDriver = new Map<string, number>();
+  for (const t of (fuelRes.data ?? []) as { driver_id: string; litres: number | null }[]) {
+    fuelByDriver.set(
+      t.driver_id,
+      (fuelByDriver.get(t.driver_id) ?? 0) + Number(t.litres ?? 0)
+    );
+  }
+
+  return ((profilesRes.data ?? []) as Record<string, unknown>[]).map((row) => {
+    const vehicles = (row.vehicles as
+      | { id: string; make_model: string; registration: string; status: string }[]
+      | null) ?? [];
+    const primaryVehicle =
+      vehicles.find((v) => v.status === "active") ?? vehicles[0] ?? null;
+
+    return {
+      id: String(row.id),
+      full_name: row.full_name ? String(row.full_name) : null,
+      email: row.email ? String(row.email) : null,
+      fuel_balance:
+        row.fuel_balance === null || row.fuel_balance === undefined
+          ? null
+          : Number(row.fuel_balance),
+      repair_balance:
+        row.repair_balance === null || row.repair_balance === undefined
+          ? null
+          : Number(row.repair_balance),
+      vehicle: primaryVehicle
+        ? {
+            id: String(primaryVehicle.id),
+            make_model: String(primaryVehicle.make_model),
+            registration: String(primaryVehicle.registration),
+          }
+        : null,
+      fuel_used_this_month: Number(fuelByDriver.get(String(row.id)) ?? 0),
+    };
+  });
+}
+
+export async function getFuelUsageByGarage(): Promise<FuelUsageByGarage[]> {
+  const supabase = createAdminClient();
+  const monthStart = startOfMonth();
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("garage_id, amount, litres, garages(name)")
+    .eq("type", "fuel_issue")
+    .gte("created_at", monthStart);
+
+  if (error) throw new Error(error.message);
+
+  const byGarage = new Map<
+    string,
+    { garage_id: string | null; garage_name: string | null; litres: number; amount: number }
+  >();
+
+  for (const t of (data ?? []) as Record<string, unknown>[]) {
+    const garageId = t.garage_id ? String(t.garage_id) : null;
+    const garage = (t.garages as { name?: string } | null) ?? null;
+    const key = garageId ?? "unassigned";
+    const entry = byGarage.get(key) ?? {
+      garage_id: garageId,
+      garage_name: garage?.name ?? "Unassigned",
+      litres: 0,
+      amount: 0,
+    };
+    entry.litres += Number(t.litres ?? 0);
+    entry.amount += Number(t.amount ?? 0);
+    byGarage.set(key, entry);
+  }
+
+  return [...byGarage.values()].sort((a, b) => b.litres - a.litres);
+}
+
+export async function getTopDebtors(limit = 5): Promise<TopDebtor[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, fuel_balance, repair_balance")
+    .neq("role", "admin");
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Record<string, unknown>[])
+    .map((row) => {
+      const fuel = row.fuel_balance ? Number(row.fuel_balance) : 0;
+      const repair = row.repair_balance ? Number(row.repair_balance) : 0;
+      return {
+        id: String(row.id),
+        full_name: row.full_name ? String(row.full_name) : null,
+        fuel_balance: row.fuel_balance ? fuel : null,
+        repair_balance: row.repair_balance ? repair : null,
+        total_balance: fuel + repair,
+      };
+    })
+    .filter((d) => d.total_balance > 0)
+    .sort((a, b) => b.total_balance - a.total_balance)
+    .slice(0, limit);
+}
+
+function mapTransaction(row: Record<string, unknown>): Transaction {
+  const vehicle = (row.vehicles as { make_model?: string } | null) ?? null;
+  const garage = (row.garages as { name?: string } | null) ?? null;
+  return {
+    id: String(row.id),
+    driver_id: String(row.driver_id),
+    vehicle_id: row.vehicle_id ? String(row.vehicle_id) : null,
+    garage_id: row.garage_id ? String(row.garage_id) : null,
+    vehicle_name: vehicle?.make_model ?? null,
+    garage_name: garage?.name ?? null,
+    type: String(row.type) as TransactionType,
+    amount: Number(row.amount ?? 0),
+    litres: row.litres === null || row.litres === undefined ? null : Number(row.litres),
+    created_at: String(row.created_at ?? ""),
+  };
+}
+
+export async function getDriverTransactions(
+  driverId: string,
+  limit = 20
+): Promise<Transaction[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*, vehicles(make_model), garages(name)")
+    .eq("driver_id", driverId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Record<string, unknown>[]).map(mapTransaction);
+}
+
+export type AdminTransaction = Transaction & {
+  driver_name: string | null;
+};
+
+export async function getAdminTransactions(
+  limit = 200
+): Promise<AdminTransaction[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(
+      "*, vehicles(make_model), garages(name), profiles(full_name)"
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => {
+    const base = mapTransaction(row);
+    const driver = (row.profiles as { full_name?: string | null } | null) ?? null;
+    return { ...base, driver_name: driver?.full_name ?? null };
+  });
 }
 
 export async function getAdminPages(): Promise<PageRecord[]> {

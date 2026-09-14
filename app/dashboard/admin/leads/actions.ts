@@ -89,7 +89,7 @@ export async function sendFormInvite(
 
   const { data: template } = await admin
     .from("form_templates")
-    .select("name")
+    .select("name, contract_document_path")
     .eq("id", formTemplateId)
     .eq("status", "published")
     .maybeSingle();
@@ -164,6 +164,23 @@ export async function sendFormInvite(
       htmlFallback: `<h2>Complete your ${escapeHtml(template.name)}</h2><p>Hi ${escapeHtml(lead.full_name)}, please complete your ${escapeHtml(template.name)} using the link below.</p>${emailButton(link, "Complete application")}`,
       variables,
     });
+
+    const contractPath = (template as { contract_document_path?: string | null })
+      .contract_document_path;
+    if (contractPath) {
+      const contractTemplate = await getTemplateBySlug(
+        admin,
+        "contract_available_client"
+      );
+      await sendEmail({
+        resend,
+        template: contractTemplate,
+        to: lead.email,
+        subjectFallback: `Your ${template.name} contract is ready to sign`,
+        htmlFallback: `<h2>Your contract is ready</h2><p>Hi ${escapeHtml(lead.full_name)}, open your application to download, sign and upload your contract.</p>${emailButton(link, "Review & sign contract")}`,
+        variables,
+      });
+    }
   }
 
   await logCommunication(admin, {
