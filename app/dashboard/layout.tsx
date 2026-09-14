@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { DashboardShell } from "@/app/components/dashboard/DashboardShell";
+import { SuspendedScreen } from "@/app/components/dashboard/SuspendedScreen";
 import { adminNav, adminSiteGroup, clientNav } from "@/lib/dashboard-nav";
 
 export default async function DashboardLayout({
@@ -11,6 +12,10 @@ export default async function DashboardLayout({
 }) {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
+
+  if (profile.suspended && profile.role === "client") {
+    return <SuspendedScreen />;
+  }
 
   const isAdmin = profile.role === "admin";
 

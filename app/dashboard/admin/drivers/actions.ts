@@ -36,7 +36,6 @@ function buildProfilePatch(formData: FormData): Record<string, unknown> {
     car_make_model: clean(formData.get("car_make_model")),
     car_registration: clean(formData.get("car_registration")),
     credit_limit: toNumber(formData.get("credit_limit")),
-    fuel_balance: toNumber(formData.get("fuel_balance")),
     fuel_code: clean(formData.get("fuel_code")),
     fuel_garage_id: clean(formData.get("fuel_garage_id")),
     updated_at: new Date().toISOString(),

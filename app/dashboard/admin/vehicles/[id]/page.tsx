@@ -81,6 +81,7 @@ export default async function AdminVehicleDetailPage({
           <Field label="Driver" value={vehicle.driver_name} />
           <Field label="Owner" value={vehicle.owner_name} />
           <Field label="Category" value={vehicle.category} />
+          <Field label="Ownership" value={vehicle.ownership_type} />
           <Field label="Weekly Rental" value={formatMoney(vehicle.weekly_rental)} />
           <Field label="Date Added" value={formatDate(vehicle.created_at)} />
           <Field label="Last Updated" value={formatDate(vehicle.updated_at)} />

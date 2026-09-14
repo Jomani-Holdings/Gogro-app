@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Resend } from "resend";
+import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTemplateBySlug, sendEmail } from "@/lib/mail";
 import { DOCUMENTS_BUCKET, slugifyFilename } from "@/lib/media";
 import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/lib/data/types";
 
@@ -60,6 +63,41 @@ export async function requestDocuments(
     subject: "Documents requested",
     body: `Requested: ${valid.join(", ")}.`,
   });
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (apiKey) {
+    const { data: lead } = await admin
+      .from("leads")
+      .select("full_name, email")
+      .eq("id", leadId)
+      .maybeSingle();
+
+    if (lead?.email) {
+      const labels = valid
+        .map(
+          (value) =>
+            DOCUMENT_CATEGORIES.find((c) => c.value === value)?.label ?? value
+        )
+        .join(", ");
+      const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+      const dashboardLink = `${baseUrl}/dashboard/client#documents`;
+      const resend = new Resend(apiKey);
+      const template = await getTemplateBySlug(admin, "documents_requested_client");
+      const variables: EmailVariables = {
+        "client.name": lead.full_name ?? "there",
+        "document.categories": labels,
+        "dashboard.link": dashboardLink,
+      };
+      await sendEmail({
+        resend,
+        template,
+        to: lead.email,
+        subjectFallback: "We need a few documents from you",
+        htmlFallback: `<h2>We need a few documents</h2><p>Hi ${escapeHtml(lead.full_name ?? "there")}, please upload the following from your dashboard: ${escapeHtml(labels)}.</p>${emailButton(dashboardLink, "Upload documents")}`,
+        variables,
+      });
+    }
+  }
 
   revalidatePath("/dashboard/admin/leads");
   revalidatePath(`/dashboard/admin/leads/${leadId}`);

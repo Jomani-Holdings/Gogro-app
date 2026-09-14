@@ -41,7 +41,6 @@ export function DriverForm({
   const [creditLimit, setCreditLimit] = useState(
     driver?.credit_limit ?? null
   );
-  const [fuelBalance, setFuelBalance] = useState(driver?.fuel_balance ?? null);
   const [fuelCode, setFuelCode] = useState(driver?.fuel_code ?? "");
   const [fuelGarageId, setFuelGarageId] = useState(
     driver?.fuel_garage_id ?? ""
@@ -61,10 +60,6 @@ export function DriverForm({
     formData.append(
       "credit_limit",
       creditLimit === null ? "" : String(creditLimit)
-    );
-    formData.append(
-      "fuel_balance",
-      fuelBalance === null ? "" : String(fuelBalance)
     );
     formData.append("fuel_code", fuelCode);
     formData.append("fuel_garage_id", fuelGarageId);
@@ -228,7 +223,7 @@ export function DriverForm({
             />
           </div>
         </div>
-        <div className="grid sm:grid-cols-3 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <div>
             <label htmlFor="credit_limit" className={labelClass}>
               Credit Limit
@@ -246,20 +241,26 @@ export function DriverForm({
             />
           </div>
           <div>
-            <label htmlFor="fuel_balance" className={labelClass}>
-              Fuel Balance
-            </label>
-            <input
-              id="fuel_balance"
-              type="number"
-              min={0}
-              step="0.01"
-              value={fuelBalance ?? ""}
-              onChange={(e) =>
-                setFuelBalance(e.target.value === "" ? null : Number(e.target.value))
-              }
-              className={inputClass}
-            />
+            <label className={labelClass}>Fuel Balance</label>
+            <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
+              {driver?.fuel_balance != null
+                ? `R${Number(driver.fuel_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : "R0.00"}
+              <span className="block text-xs text-textdark/40 mt-0.5">
+                Managed via the ledger
+              </span>
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Repair Balance</label>
+            <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
+              {driver?.repair_balance != null
+                ? `R${Number(driver.repair_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : "R0.00"}
+              <span className="block text-xs text-textdark/40 mt-0.5">
+                Managed via the ledger
+              </span>
+            </div>
           </div>
           <div>
             <label htmlFor="fuel_code" className={labelClass}>

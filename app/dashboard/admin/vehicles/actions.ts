@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { VehicleStatus } from "@/lib/data/types";
+import type { VehicleStatus, VehicleOwnership } from "@/lib/data/types";
 
 export type VehicleActionResult = {
   ok: boolean;
@@ -11,6 +11,7 @@ export type VehicleActionResult = {
 };
 
 const VEHICLE_STATUSES: VehicleStatus[] = ["active", "maintenance", "off_road"];
+const VEHICLE_OWNERSHIPS: VehicleOwnership[] = ["own", "rental", "managed"];
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
@@ -33,6 +34,7 @@ function buildVehiclePatch(formData: FormData): Record<string, unknown> {
     driver_id: clean(formData.get("driver_id")),
     owner_name: clean(formData.get("owner_name")),
     category: clean(formData.get("category")),
+    ownership_type: String(formData.get("ownership_type") ?? "managed"),
     weekly_rental: toNumber(formData.get("weekly_rental")),
     status: String(formData.get("status") ?? "active"),
     updated_at: new Date().toISOString(),
@@ -49,6 +51,9 @@ export async function createVehicle(
   if (!patch.registration) return { ok: false, error: "Registration is required." };
   if (!VEHICLE_STATUSES.includes(patch.status as VehicleStatus)) {
     return { ok: false, error: "Invalid vehicle status." };
+  }
+  if (!VEHICLE_OWNERSHIPS.includes(patch.ownership_type as VehicleOwnership)) {
+    return { ok: false, error: "Invalid ownership type." };
   }
 
   const admin = createAdminClient();
@@ -76,6 +81,9 @@ export async function updateVehicle(
   if (!patch.registration) return { ok: false, error: "Registration is required." };
   if (!VEHICLE_STATUSES.includes(patch.status as VehicleStatus)) {
     return { ok: false, error: "Invalid vehicle status." };
+  }
+  if (!VEHICLE_OWNERSHIPS.includes(patch.ownership_type as VehicleOwnership)) {
+    return { ok: false, error: "Invalid ownership type." };
   }
 
   const admin = createAdminClient();

@@ -4,10 +4,16 @@ import {
   getAdminDriver,
   getAdminGarageOptions,
   getAdminLeadByUserId,
+  getAdminDriverVehicles,
+  getDriverTransactions,
 } from "@/lib/data/admin";
 import { getDocumentsForUser } from "@/lib/data/documents";
+import { formatMoney, formatDateTime } from "@/lib/utils";
 import { DriverForm } from "@/app/components/dashboard/DriverForm";
 import { DocumentsManager } from "@/app/components/dashboard/DocumentsManager";
+import { LogTransactionModal } from "@/app/components/dashboard/LogTransactionModal";
+import { SuspendDriverButton } from "@/app/components/dashboard/SuspendDriverButton";
+import { TRANSACTION_LABELS } from "@/lib/data/types";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-yellow/20 text-textdark",
@@ -41,15 +47,6 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatMoney(value: number | null): string {
-  if (value === null || value === undefined) return "—";
-  return new Intl.NumberFormat("en-ZA", {
-    style: "currency",
-    currency: "ZAR",
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
 export default async function AdminDriverProfilePage({
   params,
 }: {
@@ -59,11 +56,14 @@ export default async function AdminDriverProfilePage({
   const driver = await getAdminDriver(id);
   if (!driver) notFound();
 
-  const [garages, documents, lead] = await Promise.all([
-    getAdminGarageOptions(),
-    getDocumentsForUser(driver.user_id),
-    getAdminLeadByUserId(driver.user_id),
-  ]);
+  const [garages, documents, lead, vehicles, transactions] =
+    await Promise.all([
+      getAdminGarageOptions(),
+      getDocumentsForUser(driver.user_id),
+      getAdminLeadByUserId(driver.user_id),
+      getAdminDriverVehicles(driver.id),
+      getDriverTransactions(driver.id, 10),
+    ]);
 
   return (
     <div>
@@ -74,11 +74,39 @@ export default async function AdminDriverProfilePage({
         &larr; Back to drivers
       </Link>
 
-      <div className="mt-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-textdark">
-          {driver.full_name ?? "Driver"}
-        </h1>
-        <p className="text-textdark/60 mt-1">{driver.email ?? "—"}</p>
+      <div className="mt-4 flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-textdark">
+            {driver.full_name ?? "Driver"}
+          </h1>
+          <p className="text-textdark/60 mt-1">{driver.email ?? "—"}</p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span
+            className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
+              statusStyles[driver.driver_status] ?? statusStyles.pending
+            }`}
+          >
+            {statusLabels[driver.driver_status] ?? "Pending"}
+          </span>
+          {driver.suspended ? (
+            <span className="inline-block rounded-full px-3 py-1 text-sm font-semibold bg-error/10 text-error">
+              Suspended
+            </span>
+          ) : null}
+          <LogTransactionModal
+            driverId={driver.id}
+            driverName={driver.full_name}
+            vehicles={vehicles}
+            garages={garages}
+            triggerLabel="Log Transaction"
+            triggerClassName="inline-flex items-center justify-center rounded-lg border border-navy text-navy font-semibold py-2.5 px-4 hover:bg-navy/5"
+          />
+          <SuspendDriverButton
+            profileId={driver.id}
+            suspended={driver.suspended}
+          />
+        </div>
       </div>
 
       <div className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
@@ -101,15 +129,20 @@ export default async function AdminDriverProfilePage({
           <Field label="Car Registration" value={driver.car_registration} />
           <Field
             label="Credit Limit"
-            value={formatMoney(driver.credit_limit)}
+            value={formatMoney(driver.credit_limit, 2)}
           />
-          <Field label="Fuel Balance" value={formatMoney(driver.fuel_balance)} />
+          <Field label="Fuel Balance" value={formatMoney(driver.fuel_balance, 2)} />
+          <Field
+            label="Repair Balance"
+            value={formatMoney(driver.repair_balance, 2)}
+          />
           <Field label="Fuel Code" value={driver.fuel_code} />
           <Field label="Fuel Garage" value={driver.fuel_garage_name} />
           <Field
             label="Activity Status"
             value={statusLabels[driver.driver_status] ?? driver.driver_status}
           />
+          <Field label="Suspended" value={driver.suspended ? "Yes" : "No"} />
         </dl>
       </div>
 
@@ -129,6 +162,63 @@ export default async function AdminDriverProfilePage({
           />
         </section>
       </div>
+
+      <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
+        <h2 className="text-lg font-semibold text-navy mb-4">
+          Recent Transactions
+        </h2>
+        {transactions.length === 0 ? (
+          <p className="text-textdark/50 text-sm">
+            No transactions logged yet for this driver.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-grey/40 text-left text-textdark/60">
+                  <th className="px-3 py-2 font-medium">Date</th>
+                  <th className="px-3 py-2 font-medium">Type</th>
+                  <th className="hidden md:table-cell px-3 py-2 font-medium">
+                    Vehicle
+                  </th>
+                  <th className="hidden md:table-cell px-3 py-2 font-medium">
+                    Garage
+                  </th>
+                  <th className="px-3 py-2 font-medium">Litres</th>
+                  <th className="px-3 py-2 font-medium text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => (
+                  <tr
+                    key={tx.id}
+                    className="border-b border-grey/20 last:border-0"
+                  >
+                    <td className="px-3 py-2 text-textdark/70">
+                      {formatDateTime(tx.created_at)}
+                    </td>
+                    <td className="px-3 py-2 text-textdark font-medium">
+                      {TRANSACTION_LABELS[tx.type] ?? tx.type}
+                    </td>
+                    <td className="hidden md:table-cell px-3 py-2 text-textdark/70">
+                      {tx.vehicle_name ?? "—"}
+                    </td>
+                    <td className="hidden md:table-cell px-3 py-2 text-textdark/70">
+                      {tx.garage_name ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-textdark/70">
+                      {tx.litres !== null ? `${tx.litres} L` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-textdark">
+                      {formatMoney(tx.amount, 2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -82,6 +82,7 @@ function SortableHeader({
 
 export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
   const [filter, setFilter] = useState<string>("all");
+  const [suspendedOnly, setSuspendedOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -98,6 +99,7 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let rows = drivers.filter((driver) => {
+      if (suspendedOnly && !driver.suspended) return false;
       if (filter !== "all" && driver.driver_status !== filter) return false;
       if (!q) return true;
       return [
@@ -123,7 +125,7 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
     });
 
     return rows;
-  }, [drivers, filter, query, sortKey, sortDir]);
+  }, [drivers, filter, query, sortKey, sortDir, suspendedOnly]);
 
   return (
     <div>
@@ -143,6 +145,17 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
               {value === "all" ? "All" : statusLabels[value]}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setSuspendedOnly((prev) => !prev)}
+            className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+              suspendedOnly
+                ? "bg-error text-white border-error"
+                : "bg-white text-textdark border-grey/40 hover:border-error"
+            }`}
+          >
+            Suspended only
+          </button>
         </div>
         <input
           type="search"
@@ -274,6 +287,11 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
                       >
                         {statusLabels[driver.driver_status] ?? "Pending"}
                       </span>
+                      {driver.suspended ? (
+                        <span className="inline-block ml-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-error/10 text-error">
+                          Suspended
+                        </span>
+                      ) : null}
                     </td>
                     <td className="hidden sm:table-cell px-4 py-3 text-textdark/60">
                       {formatDate(driver.created_at)}

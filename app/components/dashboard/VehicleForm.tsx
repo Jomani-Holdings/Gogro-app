@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Vehicle, VehicleStatus } from "@/lib/data/types";
+import type { Vehicle, VehicleStatus, VehicleOwnership } from "@/lib/data/types";
 import {
   createVehicle,
   updateVehicle,
@@ -17,6 +17,12 @@ const STATUSES: { value: VehicleStatus; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "maintenance", label: "Maintenance" },
   { value: "off_road", label: "Off-Road" },
+];
+
+const OWNERSHIPS: { value: VehicleOwnership; label: string }[] = [
+  { value: "managed", label: "Managed" },
+  { value: "rental", label: "Rental" },
+  { value: "own", label: "Driver-owned" },
 ];
 
 export function VehicleForm({
@@ -36,6 +42,9 @@ export function VehicleForm({
   const [driverId, setDriverId] = useState(vehicle?.driver_id ?? "");
   const [ownerName, setOwnerName] = useState(vehicle?.owner_name ?? "");
   const [category, setCategory] = useState(vehicle?.category ?? "");
+  const [ownershipType, setOwnershipType] = useState<VehicleOwnership>(
+    vehicle?.ownership_type ?? "managed"
+  );
   const [weeklyRental, setWeeklyRental] = useState<number | null>(
     vehicle?.weekly_rental ?? null
   );
@@ -56,6 +65,7 @@ export function VehicleForm({
     formData.append("driver_id", driverId);
     formData.append("owner_name", ownerName);
     formData.append("category", category);
+    formData.append("ownership_type", ownershipType);
     formData.append("weekly_rental", weeklyRental === null ? "" : String(weeklyRental));
     formData.append("status", status);
 
@@ -150,21 +160,21 @@ export function VehicleForm({
         </div>
         <div className="grid sm:grid-cols-2 gap-5">
           <div>
-            <label htmlFor="weekly_rental" className={labelClass}>
-              Weekly Rental
+            <label htmlFor="ownership_type" className={labelClass}>
+              Ownership
             </label>
-            <input
-              id="weekly_rental"
-              type="number"
-              min={0}
-              step="0.01"
-              value={weeklyRental ?? ""}
-              onChange={(e) =>
-                setWeeklyRental(e.target.value === "" ? null : Number(e.target.value))
-              }
+            <select
+              id="ownership_type"
+              value={ownershipType}
+              onChange={(e) => setOwnershipType(e.target.value as VehicleOwnership)}
               className={inputClass}
-              placeholder="e.g. 2500"
-            />
+            >
+              {OWNERSHIPS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label htmlFor="status" className={labelClass}>
@@ -183,6 +193,23 @@ export function VehicleForm({
               ))}
             </select>
           </div>
+        </div>
+        <div>
+          <label htmlFor="weekly_rental" className={labelClass}>
+            Weekly Rental
+          </label>
+          <input
+            id="weekly_rental"
+            type="number"
+            min={0}
+            step="0.01"
+            value={weeklyRental ?? ""}
+            onChange={(e) =>
+              setWeeklyRental(e.target.value === "" ? null : Number(e.target.value))
+            }
+            className={inputClass}
+            placeholder="e.g. 2500"
+          />
         </div>
         <div>
           <label htmlFor="driver_id" className={labelClass}>
