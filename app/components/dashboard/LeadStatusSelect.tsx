@@ -24,13 +24,27 @@ export function LeadStatusSelect({
 }) {
   const [status, setStatus] = useState(currentStatus);
   const [saving, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function onChange(next: string) {
     const previous = status;
     setStatus(next);
+    setError(null);
     startTransition(async () => {
-      const result = await updateLeadStatus(id, next);
-      if (!result.ok) setStatus(previous);
+      try {
+        const result = await updateLeadStatus(id, next);
+        if (!result.ok) {
+          setStatus(previous);
+          setError(result.error ?? "Something went wrong.");
+        }
+      } catch (err) {
+        setStatus(previous);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again."
+        );
+      }
     });
   }
 
@@ -52,6 +66,7 @@ export function LeadStatusSelect({
           </option>
         ))}
       </select>
+      {error ? <p className="text-sm text-error">{error}</p> : null}
     </div>
   );
 }

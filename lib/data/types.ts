@@ -134,8 +134,8 @@ export type FuelUsageByGarage = {
 export type TopDebtor = {
   id: string;
   full_name: string | null;
-  fuel_balance: number | null;
-  repair_balance: number | null;
+  fuel_balance: number;
+  repair_balance: number;
   total_balance: number;
 };
 

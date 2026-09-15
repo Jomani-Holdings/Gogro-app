@@ -2,6 +2,10 @@ export const GALLERY_BUCKET = "gallery";
 export const DOCUMENTS_BUCKET = "documents";
 
 export const MAX_GARAGE_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+export const MAX_DOCUMENT_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+export const MAX_CLIENT_DOCUMENT_SIZE = 2 * 1024 * 1024; // 2MB
+export const MAX_GALLERY_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+export const MAX_CONTRACT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export function mediaUrl(storagePath: string): string {
   return `/api/media/${storagePath}`;

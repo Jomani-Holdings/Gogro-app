@@ -97,6 +97,7 @@ export default async function AdminDriverProfilePage({
           <LogTransactionModal
             driverId={driver.id}
             driverName={driver.full_name}
+            driver={driver}
             vehicles={vehicles}
             garages={garages}
             triggerLabel="Log Transaction"
@@ -133,6 +134,13 @@ export default async function AdminDriverProfilePage({
           />
           <Field label="Fuel Balance" value={formatMoney(driver.fuel_balance, 2)} />
           <Field
+            label="Fuel Credit Available"
+            value={formatMoney(
+              (driver.credit_limit ?? 0) - (driver.fuel_balance ?? 0),
+              2
+            )}
+          />
+          <Field
             label="Repair Balance"
             value={formatMoney(driver.repair_balance, 2)}
           />
@@ -151,7 +159,7 @@ export default async function AdminDriverProfilePage({
           <h2 className="text-lg font-semibold text-navy mb-4">
             Edit driver details
           </h2>
-          <DriverForm driver={driver} isNew={false} garages={garages} />
+          <DriverForm driver={driver} isNew={false} garages={garages} vehicles={vehicles} />
         </section>
 
         <section className="bg-white border border-grey/40 rounded-2xl p-6">

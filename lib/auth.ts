@@ -50,3 +50,14 @@ export async function requireAdmin(): Promise<Profile> {
   if (profile.role !== "admin") redirect("/dashboard/client");
   return profile;
 }
+
+export async function requireClient(): Promise<Profile> {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/login");
+  if (profile.role !== "client") redirect("/dashboard/admin");
+  return profile;
+}
+
+export function dashboardPathForRole(role: string): string {
+  return role === "admin" ? "/dashboard/admin" : "/dashboard/client";
+}

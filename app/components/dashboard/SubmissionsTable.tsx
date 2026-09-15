@@ -120,7 +120,7 @@ export function SubmissionsTable({
                       href={`/dashboard/admin/submissions/${submission.id}`}
                       className="inline-block text-navy font-semibold hover:text-orange"
                     >
-                      Review &rarr;
+                      Submission review &rarr;
                     </Link>
                   </td>
                 </tr>

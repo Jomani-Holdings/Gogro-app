@@ -256,7 +256,7 @@ export function VehiclesTable({ vehicles }: { vehicles: Vehicle[] }) {
                           href={`/dashboard/admin/vehicles/${vehicle.id}`}
                           className="inline-block text-navy font-semibold hover:text-orange"
                         >
-                          Open &rarr;
+                          View vehicle &rarr;
                         </Link>
                       </td>
                     </tr>

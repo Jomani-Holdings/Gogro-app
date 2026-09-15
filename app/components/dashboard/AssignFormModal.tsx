@@ -40,13 +40,23 @@ export function AssignFormModal({
     if (!selectedId) return;
     setResult(null);
     startTransition(async () => {
-      const res = await sendFormInvite(leadId, selectedId);
-      setResult(
-        res.ok
-          ? { ok: true, message: "Application invite sent." }
-          : { ok: false, message: res.error ?? "Could not send invite." }
-      );
-      if (res.ok) router.refresh();
+      try {
+        const res = await sendFormInvite(leadId, selectedId);
+        setResult(
+          res.ok
+            ? { ok: true, message: "Application invite sent." }
+            : { ok: false, message: res.error ?? "Could not send invite." }
+        );
+        if (res.ok) router.refresh();
+      } catch (err) {
+        setResult({
+          ok: false,
+          message:
+            err instanceof Error
+              ? err.message
+              : "Could not send invite. Please try again.",
+        });
+      }
     });
   }
 

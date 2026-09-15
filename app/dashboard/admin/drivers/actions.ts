@@ -42,6 +42,62 @@ function buildProfilePatch(formData: FormData): Record<string, unknown> {
   };
 }
 
+async function syncDriverVehicle(
+  admin: ReturnType<typeof createAdminClient>,
+  driverId: string,
+  formData: FormData
+): Promise<string | null> {
+  const makeModel = clean(formData.get("car_make_model"));
+  const registration = clean(formData.get("car_registration"));
+  if (!makeModel || !registration) return null;
+
+  const { data: existing } = await admin
+    .from("vehicles")
+    .select("id")
+    .eq("driver_id", driverId)
+    .ilike("registration", registration)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await admin
+      .from("vehicles")
+      .update({
+        make_model: makeModel,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+    return error ? error.message : null;
+  }
+
+  const { data: globalVehicle } = await admin
+    .from("vehicles")
+    .select("id")
+    .ilike("registration", registration)
+    .maybeSingle();
+
+  if (globalVehicle) {
+    const { error } = await admin
+      .from("vehicles")
+      .update({
+        driver_id: driverId,
+        make_model: makeModel,
+        ownership_type: "own",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", globalVehicle.id);
+    return error ? error.message : null;
+  }
+
+  const { error } = await admin.from("vehicles").insert({
+    driver_id: driverId,
+    make_model: makeModel,
+    registration,
+    ownership_type: "own",
+    status: "active",
+  });
+  return error ? error.message : null;
+}
+
 export async function createDriver(formData: FormData): Promise<DriverActionResult> {
   await requireAdmin();
 
@@ -81,7 +137,18 @@ export async function createDriver(formData: FormData): Promise<DriverActionResu
 
   if (error) return { ok: false, error: error.message };
 
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (profile) {
+    const vehicleError = await syncDriverVehicle(admin, profile.id, formData);
+    if (vehicleError) return { ok: false, error: vehicleError };
+  }
+
   revalidatePath("/dashboard/admin/drivers");
+  revalidatePath("/dashboard/admin/vehicles");
   return { ok: true, tempPassword };
 }
 
@@ -107,8 +174,12 @@ export async function updateDriver(
 
   if (error) return { ok: false, error: error.message };
 
+  const vehicleError = await syncDriverVehicle(admin, id, formData);
+  if (vehicleError) return { ok: false, error: vehicleError };
+
   revalidatePath("/dashboard/admin/drivers");
   revalidatePath(`/dashboard/admin/drivers/${id}`);
+  revalidatePath("/dashboard/admin/vehicles");
   return { ok: true };
 }
 

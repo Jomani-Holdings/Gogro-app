@@ -6,11 +6,10 @@ import {
   uploadDocument,
   setDocumentStatus,
   deleteDocument,
-  MAX_DOCUMENT_FILE_SIZE,
 } from "@/app/dashboard/admin/documents/actions";
 import { RequestDocumentsModal } from "@/app/components/dashboard/RequestDocumentsModal";
 import { DOCUMENT_CATEGORIES, type Document } from "@/lib/data/types";
-import { documentUrl } from "@/lib/media";
+import { documentUrl, MAX_DOCUMENT_FILE_SIZE } from "@/lib/media";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-yellow/20 text-textdark",
@@ -47,7 +46,7 @@ export function DocumentsManager({
     setUploadError(null);
     if (!file) return;
     if (file.size > MAX_DOCUMENT_FILE_SIZE) {
-      setUploadError("File is larger than the 5MB limit.");
+      setUploadError("File is larger than the 2MB limit.");
       return;
     }
     if (!["image/jpeg", "image/png", "application/pdf"].includes(file.type)) {
@@ -62,8 +61,20 @@ export function DocumentsManager({
       formData.append("user_id", userId ?? "");
       formData.append("category", category);
       formData.append("file", file);
-      const result = await uploadDocument(formData);
-      if (!result.ok) setUploadError(result.error ?? "Upload failed.");
+      try {
+        const result = await uploadDocument(formData);
+        if (!result.ok) setUploadError(result.error ?? "Upload failed.");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Upload failed.";
+        if (message.toLowerCase().includes("body exceeded")) {
+          setUploadError(
+            "File is too large. Please upload a file under 2MB."
+          );
+        } else {
+          setUploadError(message);
+        }
+      }
       setUploadingCategory(null);
       if (fileRefs.current[category]) fileRefs.current[category]!.value = "";
       router.refresh();
@@ -71,16 +82,36 @@ export function DocumentsManager({
   }
 
   function changeStatus(id: string, status: "pending" | "approved" | "rejected") {
+    setUploadError(null);
     startTransition(async () => {
-      await setDocumentStatus(id, status);
+      try {
+        const result = await setDocumentStatus(id, status);
+        if (!result.ok) setUploadError(result.error ?? "Something went wrong.");
+      } catch (err) {
+        setUploadError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again."
+        );
+      }
       router.refresh();
     });
   }
 
   function remove(id: string) {
     if (!window.confirm("Delete this document?")) return;
+    setUploadError(null);
     startTransition(async () => {
-      await deleteDocument(id);
+      try {
+        const result = await deleteDocument(id);
+        if (!result.ok) setUploadError(result.error ?? "Something went wrong.");
+      } catch (err) {
+        setUploadError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again."
+        );
+      }
       router.refresh();
     });
   }
