@@ -5,9 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { JSONContent } from "@tiptap/core";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DOCUMENTS_BUCKET, slugifyFilename } from "@/lib/media";
-
-export const MAX_CONTRACT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+import { DOCUMENTS_BUCKET, MAX_CONTRACT_FILE_SIZE, slugifyFilename } from "@/lib/media";
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;

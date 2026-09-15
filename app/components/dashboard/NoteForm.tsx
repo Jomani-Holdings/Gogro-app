@@ -13,11 +13,21 @@ export function NoteForm({ leadId }: { leadId: string }) {
   function submit() {
     if (!note.trim()) return;
     startTransition(async () => {
-      const result = await addLeadNote(leadId, note);
-      setStatus(result.ok
-        ? { ok: true, message: "Note added." }
-        : { ok: false, message: result.error ?? "Could not add note." });
-      if (result.ok) setNote("");
+      try {
+        const result = await addLeadNote(leadId, note);
+        setStatus(result.ok
+          ? { ok: true, message: "Note added." }
+          : { ok: false, message: result.error ?? "Could not add note." });
+        if (result.ok) setNote("");
+      } catch (err) {
+        setStatus({
+          ok: false,
+          message:
+            err instanceof Error
+              ? err.message
+              : "Could not add note. Please try again.",
+        });
+      }
     });
   }
 

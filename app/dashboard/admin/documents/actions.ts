@@ -6,15 +6,17 @@ import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplateBySlug, sendEmail } from "@/lib/mail";
-import { DOCUMENTS_BUCKET, slugifyFilename } from "@/lib/media";
+import {
+  DOCUMENTS_BUCKET,
+  MAX_DOCUMENT_FILE_SIZE,
+  slugifyFilename,
+} from "@/lib/media";
 import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/lib/data/types";
 
 export type DocumentActionResult = {
   ok: boolean;
   error?: string;
 };
-
-export const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -123,7 +125,7 @@ export async function uploadDocument(
     return { ok: false, error: "Please choose a file." };
   }
   if (file.size > MAX_DOCUMENT_FILE_SIZE) {
-    return { ok: false, error: "File is larger than the 5MB limit." };
+    return { ok: false, error: "File is larger than the 2MB limit." };
   }
   if (!ALLOWED_TYPES.includes(file.type)) {
     return { ok: false, error: "Only PDF, JPG or PNG files are allowed." };

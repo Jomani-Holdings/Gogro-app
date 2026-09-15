@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 import { uploadClientDocument } from "@/app/dashboard/client/actions";
 import { DOCUMENT_CATEGORIES, type Document } from "@/lib/data/types";
-import { documentUrl } from "@/lib/media";
+import { documentUrl, MAX_CLIENT_DOCUMENT_SIZE } from "@/lib/media";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-yellow/20 text-textdark",
@@ -38,8 +38,8 @@ export function ClientDocumentsUpload({
   function handleFile(category: string, file: File | undefined) {
     setError(null);
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError("File is larger than the 5MB limit.");
+    if (file.size > MAX_CLIENT_DOCUMENT_SIZE) {
+      setError("File is larger than the 2MB limit.");
       return;
     }
     if (!["image/jpeg", "image/png", "application/pdf"].includes(file.type)) {
@@ -52,8 +52,18 @@ export function ClientDocumentsUpload({
       const formData = new FormData();
       formData.append("category", category);
       formData.append("file", file);
-      const result = await uploadClientDocument(formData);
-      if (!result.ok) setError(result.error ?? "Upload failed.");
+      try {
+        const result = await uploadClientDocument(formData);
+        if (!result.ok) setError(result.error ?? "Upload failed.");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Upload failed.";
+        if (message.toLowerCase().includes("body exceeded")) {
+          setError("File is too large. Please upload a file under 2MB.");
+        } else {
+          setError(message);
+        }
+      }
       setUploading(null);
       router.refresh();
     });

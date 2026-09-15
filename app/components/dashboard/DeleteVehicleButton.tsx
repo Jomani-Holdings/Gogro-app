@@ -13,14 +13,23 @@ export function DeleteVehicleButton({ vehicleId }: { vehicleId: string }) {
   async function onConfirm() {
     setSubmitting(true);
     setError(null);
-    const result = await deleteVehicle(vehicleId);
-    if (!result.ok) {
-      setError(result.error ?? "Something went wrong.");
+    try {
+      const result = await deleteVehicle(vehicleId);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        setSubmitting(false);
+        return;
+      }
+      router.push("/dashboard/admin/vehicles");
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again."
+      );
       setSubmitting(false);
-      return;
     }
-    router.push("/dashboard/admin/vehicles");
-    router.refresh();
   }
 
   if (confirming) {

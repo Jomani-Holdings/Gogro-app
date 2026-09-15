@@ -3,9 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { GALLERY_BUCKET, slugifyFilename } from "@/lib/media";
-
-export const MAX_GALLERY_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+import { GALLERY_BUCKET, MAX_GALLERY_FILE_SIZE, slugifyFilename } from "@/lib/media";
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;

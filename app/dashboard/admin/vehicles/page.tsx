@@ -4,6 +4,7 @@ import { VehiclesTable } from "@/app/components/dashboard/VehiclesTable";
 
 export default async function AdminVehiclesPage() {
   const vehicles = await getAdminVehicles();
+  const fleetVehicles = vehicles.filter((v) => v.ownership_type !== "own");
 
   return (
     <div>
@@ -25,7 +26,7 @@ export default async function AdminVehiclesPage() {
       </div>
 
       <div className="mt-8">
-        <VehiclesTable vehicles={vehicles} />
+        <VehiclesTable vehicles={fleetVehicles} />
       </div>
     </div>
   );
