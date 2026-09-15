@@ -301,7 +301,7 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
                         href={`/dashboard/admin/drivers/${driver.id}`}
                         className="inline-block text-navy font-semibold hover:text-orange"
                       >
-                        Open &rarr;
+                        View profile &rarr;
                       </Link>
                     </td>
                   </tr>

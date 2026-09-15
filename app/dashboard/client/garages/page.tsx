@@ -1,9 +1,9 @@
-import { requireUser } from "@/lib/auth";
+import { requireClient } from "@/lib/auth";
 import { getGaragesByTypeSlug } from "@/lib/data/garages";
 import { GarageLocator } from "@/app/components/dashboard/GarageLocator";
 
 export default async function DriverGaragesPage() {
-  await requireUser();
+  await requireClient();
   const garages = await getGaragesByTypeSlug();
 
   return (

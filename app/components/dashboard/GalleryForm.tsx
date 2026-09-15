@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { saveGalleryImage, MAX_GALLERY_FILE_SIZE } from "@/app/dashboard/admin/gallery/actions";
+import { saveGalleryImage } from "@/app/dashboard/admin/gallery/actions";
+import { MAX_GALLERY_FILE_SIZE } from "@/lib/media";
 import { mediaUrl } from "@/lib/media";
 
 const inputClass =

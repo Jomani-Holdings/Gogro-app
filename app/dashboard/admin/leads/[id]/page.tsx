@@ -103,7 +103,7 @@ export default async function AdminLeadDetailPage({
                       href={`/dashboard/admin/submissions/${submission.id}`}
                       className="text-navy font-semibold hover:text-orange shrink-0"
                     >
-                      Review &rarr;
+                      Submission review &rarr;
                     </Link>
                   </li>
                 ))}

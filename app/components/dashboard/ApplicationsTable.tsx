@@ -122,7 +122,7 @@ export function ApplicationsTable({
                       href={`/dashboard/admin/applications/${app.id}`}
                       className="inline-block text-navy font-semibold hover:text-orange"
                     >
-                      Review &rarr;
+                      Application review &rarr;
                     </Link>
                   </td>
                 </tr>

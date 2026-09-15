@@ -8,6 +8,7 @@ import {
   createDriver,
   updateDriver,
 } from "@/app/dashboard/admin/drivers/actions";
+import { LogTransactionModal } from "@/app/components/dashboard/LogTransactionModal";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -24,10 +25,12 @@ export function DriverForm({
   driver,
   isNew,
   garages,
+  vehicles = [],
 }: {
   driver: AdminDriver | null;
   isNew: boolean;
   garages: { id: string; name: string }[];
+  vehicles?: { id: string; make_model: string; registration: string }[];
 }) {
   const router = useRouter();
   const [fullName, setFullName] = useState(driver?.full_name ?? "");
@@ -242,25 +245,69 @@ export function DriverForm({
           </div>
           <div>
             <label className={labelClass}>Fuel Balance</label>
-            <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
-              {driver?.fuel_balance != null
-                ? `R${Number(driver.fuel_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : "R0.00"}
-              <span className="block text-xs text-textdark/40 mt-0.5">
-                Managed via the ledger
-              </span>
-            </div>
+            {!isNew && driver ? (
+              <LogTransactionModal
+                driverId={driver.id}
+                driverName={driver.full_name}
+                driver={driver}
+                vehicles={vehicles}
+                garages={garages}
+                defaultType="fuel_issue"
+                triggerClassName="w-full text-left"
+                trigger={
+                  <span className="block w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80 transition-colors hover:border-orange/60 hover:bg-orange/5 cursor-pointer">
+                    {driver.fuel_balance != null
+                      ? `R${Number(driver.fuel_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : "R0.00"}
+                    <span className="block text-xs text-textdark/40 mt-0.5">
+                      Managed via the ledger — click to log
+                    </span>
+                  </span>
+                }
+              />
+            ) : (
+              <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
+                {driver?.fuel_balance != null
+                  ? `R${Number(driver.fuel_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : "R0.00"}
+                <span className="block text-xs text-textdark/40 mt-0.5">
+                  Managed via the ledger
+                </span>
+              </div>
+            )}
           </div>
           <div>
             <label className={labelClass}>Repair Balance</label>
-            <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
-              {driver?.repair_balance != null
-                ? `R${Number(driver.repair_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : "R0.00"}
-              <span className="block text-xs text-textdark/40 mt-0.5">
-                Managed via the ledger
-              </span>
-            </div>
+            {!isNew && driver ? (
+              <LogTransactionModal
+                driverId={driver.id}
+                driverName={driver.full_name}
+                driver={driver}
+                vehicles={vehicles}
+                garages={garages}
+                defaultType="repair_issue"
+                triggerClassName="w-full text-left"
+                trigger={
+                  <span className="block w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80 transition-colors hover:border-orange/60 hover:bg-orange/5 cursor-pointer">
+                    {driver.repair_balance != null
+                      ? `R${Number(driver.repair_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : "R0.00"}
+                    <span className="block text-xs text-textdark/40 mt-0.5">
+                      Managed via the ledger — click to log
+                    </span>
+                  </span>
+                }
+              />
+            ) : (
+              <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
+                {driver?.repair_balance != null
+                  ? `R${Number(driver.repair_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : "R0.00"}
+                <span className="block text-xs text-textdark/40 mt-0.5">
+                  Managed via the ledger
+                </span>
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor="fuel_code" className={labelClass}>

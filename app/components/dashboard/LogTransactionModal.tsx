@@ -8,27 +8,45 @@ import {
   TRANSACTION_TYPES,
   type TransactionType,
 } from "@/lib/data/types";
+import { formatMoney } from "@/lib/utils";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
 const labelClass = "block text-sm font-semibold text-textdark mb-1.5";
 
+export type LogTransactionDriverInfo = {
+  phone: string | null;
+  email: string | null;
+  fuel_balance: number | null;
+  repair_balance: number | null;
+  credit_limit: number | null;
+  car_make_model: string | null;
+  car_registration: string | null;
+  fuel_code: string | null;
+  fuel_garage_name: string | null;
+  fuel_garage_id: string | null;
+};
+
 export function LogTransactionModal({
   driverId,
   driverName,
+  driver,
   vehicles,
   garages,
   defaultType = "fuel_issue",
   triggerLabel = "Log Transaction",
   triggerClassName,
+  trigger,
 }: {
   driverId: string;
   driverName: string | null;
+  driver?: LogTransactionDriverInfo | null;
   vehicles: { id: string; make_model: string; registration: string }[];
   garages: { id: string; name: string }[];
   defaultType?: TransactionType;
   triggerLabel?: string;
   triggerClassName?: string;
+  trigger?: React.ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -49,8 +67,8 @@ export function LogTransactionModal({
     setType(defaultType);
     setAmount("");
     setLitres("");
-    setVehicleId("");
-    setGarageId("");
+    setVehicleId(vehicles[0]?.id ?? "");
+    setGarageId(driver?.fuel_garage_id ?? "");
     setCreatedAt("");
     setError(null);
     setWarning(null);
@@ -97,7 +115,7 @@ export function LogTransactionModal({
           "inline-flex items-center justify-center rounded-lg bg-navy text-white font-semibold py-3 px-5 hover:bg-navy/90"
         }
       >
-        {triggerLabel}
+        {trigger ?? triggerLabel}
       </button>
 
       {open ? (
@@ -142,6 +160,72 @@ export function LogTransactionModal({
                   ? " This is recorded for reference only and does not change the driver's balance."
                   : " Balances update automatically."}
               </p>
+
+              {driver ? (
+                <div className="rounded-xl border border-grey/40 bg-offwhite p-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">Phone</p>
+                    <p className="text-textdark font-semibold">
+                      {driver.phone ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">Email</p>
+                    <p className="text-textdark font-semibold truncate">
+                      {driver.email ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">Vehicle</p>
+                    <p className="text-textdark font-semibold">
+                      {driver.car_make_model ?? "—"}
+                      {driver.car_registration
+                        ? ` (${driver.car_registration})`
+                        : ""}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">
+                      Fuel Garage
+                    </p>
+                    <p className="text-textdark font-semibold">
+                      {driver.fuel_garage_name ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">
+                      Credit Limit
+                    </p>
+                    <p className="text-textdark font-semibold">
+                      {formatMoney(driver.credit_limit)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">
+                      Fuel Code
+                    </p>
+                    <p className="text-textdark font-semibold">
+                      {driver.fuel_code ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">
+                      Fuel Balance
+                    </p>
+                    <p className="text-textdark font-semibold">
+                      {formatMoney(driver.fuel_balance)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">
+                      Repair Balance
+                    </p>
+                    <p className="text-textdark font-semibold">
+                      {formatMoney(driver.repair_balance)}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
 
               <div>
                 <label htmlFor="transaction_type" className={labelClass}>
@@ -213,6 +297,18 @@ export function LogTransactionModal({
                     </option>
                   ))}
                 </select>
+                {vehicles.length === 0 && driver?.car_make_model ? (
+                  <p className="mt-1.5 text-xs text-textdark/50">
+                    No vehicle record yet. Car on profile:{" "}
+                    <span className="font-medium text-textdark">
+                      {driver.car_make_model}
+                      {driver.car_registration
+                        ? ` (${driver.car_registration})`
+                        : ""}
+                    </span>
+                    . Saving the driver profile will create one.
+                  </p>
+                ) : null}
               </div>
 
               <div>

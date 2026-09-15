@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MapPin, LifeBuoy, FileText } from "lucide-react";
-import { requireUser } from "@/lib/auth";
+import { requireClient } from "@/lib/auth";
 import { getClientLeadAndSubmissions, getClientRequiredActions } from "@/lib/data/client";
 import { getClientDocumentsContext } from "@/lib/data/documents";
 import { ClientDocumentsUpload } from "@/app/components/dashboard/ClientDocumentsUpload";
@@ -31,12 +31,14 @@ const statusStyles: Record<string, string> = {
 };
 
 export default async function ClientHomePage() {
-  const user = await requireUser();
-  const { lead, submissions } = await getClientLeadAndSubmissions(user.id);
-  const { documents, contractDownloadUrl } = await getClientDocumentsContext(
-    user.id
+  const profile = await requireClient();
+  const { lead, submissions } = await getClientLeadAndSubmissions(
+    profile.user_id
   );
-  const requiredActions = await getClientRequiredActions(user.id);
+  const { documents, contractDownloadUrl } = await getClientDocumentsContext(
+    profile.user_id
+  );
+  const requiredActions = await getClientRequiredActions(profile.user_id);
   const status = lead?.status ?? "new";
   const pending = submissions.find((s) => s.status === "pending" || s.status === "draft");
 

@@ -18,12 +18,20 @@ export function SuspendDriverButton({
   function toggle() {
     setError(null);
     startTransition(async () => {
-      const result = await setDriverSuspended(profileId, !suspended);
-      if (!result.ok) {
-        setError(result.error ?? "Something went wrong.");
-        return;
+      try {
+        const result = await setDriverSuspended(profileId, !suspended);
+        if (!result.ok) {
+          setError(result.error ?? "Something went wrong.");
+          return;
+        }
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again."
+        );
       }
-      router.refresh();
     });
   }
 

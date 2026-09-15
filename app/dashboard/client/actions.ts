@@ -3,10 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { Resend } from "resend";
 import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
-import { requireUser } from "@/lib/auth";
+import { requireClient } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplateBySlug, sendEmail } from "@/lib/mail";
-import { DOCUMENTS_BUCKET, slugifyFilename } from "@/lib/media";
+import {
+  DOCUMENTS_BUCKET,
+  MAX_CLIENT_DOCUMENT_SIZE,
+  slugifyFilename,
+} from "@/lib/media";
 import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/lib/data/types";
 
 export type ClientDocumentActionResult = {
@@ -14,15 +18,14 @@ export type ClientDocumentActionResult = {
   error?: string;
 };
 
-export const MAX_CLIENT_DOCUMENT_SIZE = 5 * 1024 * 1024; // 5MB
-
 const VALID_CATEGORIES = DOCUMENT_CATEGORIES.map((c) => c.value);
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 
 export async function uploadClientDocument(
   formData: FormData
 ): Promise<ClientDocumentActionResult> {
-  const user = await requireUser();
+  const profile = await requireClient();
+  const user = { id: profile.user_id, email: profile.email };
 
   const category = String(formData.get("category") ?? "") as DocumentCategory;
   if (!VALID_CATEGORIES.includes(category)) {
@@ -34,7 +37,7 @@ export async function uploadClientDocument(
     return { ok: false, error: "Please choose a file." };
   }
   if (file.size > MAX_CLIENT_DOCUMENT_SIZE) {
-    return { ok: false, error: "File is larger than the 5MB limit." };
+    return { ok: false, error: "File is larger than the 2MB limit." };
   }
   if (!ALLOWED_TYPES.includes(file.type)) {
     return { ok: false, error: "Only PDF, JPG or PNG files are allowed." };

@@ -185,7 +185,7 @@ function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
         : Number(row.credit_limit),
     fuel_balance:
       row.fuel_balance === null || row.fuel_balance === undefined
-        ? null
+        ? 0
         : Number(row.fuel_balance),
     repair_balance:
       row.repair_balance === null || row.repair_balance === undefined
@@ -426,7 +426,7 @@ export async function getAdminDashboardStats(): Promise<DashboardStats> {
     supabase
       .from("profiles")
       .select("fuel_balance")
-      .eq("driver_status", "active"),
+      .neq("role", "admin"),
     supabase
       .from("transactions")
       .select("amount")
@@ -555,7 +555,7 @@ export async function getAdminActiveDriversForDashboard(): Promise<
       email: row.email ? String(row.email) : null,
       fuel_balance:
         row.fuel_balance === null || row.fuel_balance === undefined
-          ? null
+          ? 0
           : Number(row.fuel_balance),
       repair_balance:
         row.repair_balance === null || row.repair_balance === undefined
@@ -624,8 +624,8 @@ export async function getTopDebtors(limit = 5): Promise<TopDebtor[]> {
       return {
         id: String(row.id),
         full_name: row.full_name ? String(row.full_name) : null,
-        fuel_balance: row.fuel_balance ? fuel : null,
-        repair_balance: row.repair_balance ? repair : null,
+        fuel_balance: fuel,
+        repair_balance: repair,
         total_balance: fuel + repair,
       };
     })
