@@ -17,9 +17,12 @@ const labelClass = "block text-sm font-semibold text-textdark mb-1.5";
 export type LogTransactionDriverInfo = {
   phone: string | null;
   email: string | null;
-  fuel_balance: number | null;
-  repair_balance: number | null;
-  credit_limit: number | null;
+  driver_balance: number;
+  weekly_fuel_limit: number;
+  weekly_fuel_issued: number;
+  weekly_fuel_available: number;
+  next_payment_due: string | null;
+  is_overdue: boolean;
   car_make_model: string | null;
   car_registration: string | null;
   fuel_code: string | null;
@@ -59,7 +62,7 @@ export function LogTransactionModal({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const [confirmOverride, setConfirmOverride] = useState(false);
+  const [pendingOverride, setPendingOverride] = useState(false);
 
   const currentType = TRANSACTION_TYPES.find((t) => t.value === type);
 
@@ -72,12 +75,13 @@ export function LogTransactionModal({
     setCreatedAt("");
     setError(null);
     setWarning(null);
-    setConfirmOverride(false);
+    setPendingOverride(false);
     setOpen(true);
   }
 
-  function submit(override = false) {
+  function submit(overrideAction?: "authorize" | "unauthorized") {
     setError(null);
+    setWarning(null);
     const formData = new FormData();
     formData.append("driver_id", driverId);
     formData.append("type", type);
@@ -86,22 +90,33 @@ export function LogTransactionModal({
     formData.append("vehicle_id", vehicleId);
     formData.append("garage_id", garageId);
     formData.append("created_at", createdAt);
-    if (override) formData.append("confirm_override", "on");
+    if (overrideAction) formData.append("override_action", overrideAction);
 
     startTransition(async () => {
       const result = await logTransaction(formData);
       if (!result.ok) {
         if (result.requiresConfirmation && result.warning) {
           setWarning(result.warning);
-          setConfirmOverride(true);
+          setPendingOverride(true);
           return;
         }
         setError(result.error ?? "Something went wrong.");
         return;
       }
       setOpen(false);
-      setConfirmOverride(false);
+      setPendingOverride(false);
       router.refresh();
+    });
+  }
+
+  function formatDueDate(iso: string | null): string {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString("en-ZA", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
 
@@ -146,9 +161,29 @@ export function LogTransactionModal({
                 </p>
               ) : null}
               {warning ? (
-                <p className="rounded-lg bg-yellow/20 border border-yellow/50 px-4 py-3 text-sm text-textdark">
-                  {warning}
-                </p>
+                <div className="rounded-lg bg-yellow/20 border border-yellow/50 px-4 py-3 text-sm text-textdark space-y-3">
+                  <p>{warning}</p>
+                  {pendingOverride ? (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => submit("authorize")}
+                        className="rounded-lg bg-navy text-white font-semibold py-2 px-4 hover:bg-navy/90 disabled:opacity-60"
+                      >
+                        Authorize Override
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => submit("unauthorized")}
+                        className="rounded-lg border border-error text-error font-semibold py-2 px-4 hover:bg-error/10 disabled:opacity-60"
+                      >
+                        Process Unauthorized (+R100 penalty)
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
               <p className="text-sm text-textdark/70">
                 Recording a transaction for{" "}
@@ -156,7 +191,7 @@ export function LogTransactionModal({
                   {driverName ?? "this driver"}
                 </span>
                 .
-                {type === "opening_balance" || type === "rental_fee"
+                {type === "opening_balance"
                   ? " This is recorded for reference only and does not change the driver's balance."
                   : " Balances update automatically."}
               </p>
@@ -194,10 +229,10 @@ export function LogTransactionModal({
                   </div>
                   <div>
                     <p className="text-textdark/50 text-xs font-medium">
-                      Credit Limit
+                      Fuel Credit
                     </p>
                     <p className="text-textdark font-semibold">
-                      {formatMoney(driver.credit_limit)}
+                      {formatMoney(driver.weekly_fuel_limit)}
                     </p>
                   </div>
                   <div>
@@ -210,18 +245,39 @@ export function LogTransactionModal({
                   </div>
                   <div>
                     <p className="text-textdark/50 text-xs font-medium">
-                      Fuel Balance
+                      Driver Balance
                     </p>
                     <p className="text-textdark font-semibold">
-                      {formatMoney(driver.fuel_balance)}
+                      {formatMoney(driver.driver_balance)}
                     </p>
                   </div>
                   <div>
                     <p className="text-textdark/50 text-xs font-medium">
-                      Repair Balance
+                      Fuel Used This Cycle
                     </p>
                     <p className="text-textdark font-semibold">
-                      {formatMoney(driver.repair_balance)}
+                      {formatMoney(driver.weekly_fuel_issued)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">
+                      Fuel Credit Left
+                    </p>
+                    <p className="text-textdark font-semibold">
+                      {formatMoney(driver.weekly_fuel_available)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-textdark/50 text-xs font-medium">
+                      Next Payment Due
+                    </p>
+                    <p
+                      className={`text-textdark font-semibold ${
+                        driver.is_overdue ? "text-error" : ""
+                      }`}
+                    >
+                      {formatDueDate(driver.next_payment_due)}
+                      {driver.is_overdue ? " (OVERDUE)" : ""}
                     </p>
                   </div>
                 </div>
@@ -352,18 +408,16 @@ export function LogTransactionModal({
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                disabled={pending || !amount}
-                onClick={() => submit(confirmOverride)}
-                className="rounded-lg bg-orange text-white font-semibold py-2.5 px-5 hover:bg-orange/90 disabled:opacity-60"
-              >
-                {pending
-                  ? "Saving…"
-                  : confirmOverride
-                    ? "Log anyway"
-                    : "Record transaction"}
-              </button>
+              {!pendingOverride ? (
+                <button
+                  type="button"
+                  disabled={pending || !amount}
+                  onClick={() => submit()}
+                  className="rounded-lg bg-orange text-white font-semibold py-2.5 px-5 hover:bg-orange/90 disabled:opacity-60"
+                >
+                  {pending ? "Saving…" : "Record transaction"}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

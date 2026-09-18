@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyUser } from "@/lib/notifications";
 import { getTemplateBySlug, sendEmail } from "@/lib/mail";
 import {
   DOCUMENTS_BUCKET,
@@ -64,6 +65,13 @@ export async function requestDocuments(
     direction: "outbound",
     subject: "Documents requested",
     body: `Requested: ${valid.join(", ")}.`,
+  });
+
+  await notifyUser(userId, {
+    title: "Documents requested",
+    body: "We need a few documents from you before we can continue.",
+    link: "/dashboard/client#documents",
+    type: "document",
   });
 
   const apiKey = process.env.RESEND_API_KEY;

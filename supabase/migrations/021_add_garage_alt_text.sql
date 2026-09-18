@@ -1,0 +1,1 @@
+alter table public.garages add column if not exists alt_text text;

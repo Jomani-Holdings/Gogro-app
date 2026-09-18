@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { requireClient } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyAllAdmins } from "@/lib/notifications";
 import { getTemplateBySlug, sendEmail } from "@/lib/mail";
 import {
   DOCUMENTS_BUCKET,
@@ -78,6 +79,18 @@ export async function uploadClientDocument(
     await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
     return { ok: false, error: error.message };
   }
+
+  const categoryLabel =
+    DOCUMENT_CATEGORIES.find((c) => c.value === category)?.label ?? category;
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  await notifyAllAdmins({
+    title: "Document uploaded",
+    body: `${lead?.full_name ?? user.email ?? "A client"} uploaded: ${categoryLabel}.`,
+    link: leadId
+      ? `${baseUrl}/dashboard/admin/leads/${leadId}`
+      : `${baseUrl}/dashboard/admin/drivers`,
+    type: "document",
+  });
 
   if (category === "signed_contract") {
     const apiKey = process.env.RESEND_API_KEY;

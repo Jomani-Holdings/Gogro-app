@@ -1,4 +1,4 @@
-import { Users, Fuel, Wallet, Percent, Wrench, ShieldAlert, Car, Truck } from "lucide-react";
+import { Users, Fuel, Wallet, Percent, AlertTriangle, ShieldAlert, Car, Truck } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -41,15 +41,15 @@ export default async function AdminOverviewPage() {
           accent="navy"
         />
         <KpiCard
-          label="Fuel Issued This Week"
-          value={formatMoney(stats.fuelIssuedThisWeek.amount)}
+          label="Fuel Issued This Cycle"
+          value={formatMoney(stats.fuelIssuedThisCycle.amount)}
           icon={Fuel}
-          sub={`${stats.fuelIssuedThisWeek.litres.toFixed(1)} L issued`}
+          sub={`${stats.fuelIssuedThisCycle.litres.toFixed(1)} L issued`}
           accent="orange"
         />
         <KpiCard
-          label="Outstanding Fuel Credit"
-          value={formatMoney(stats.outstandingFuelCredit)}
+          label="Total Outstanding"
+          value={formatMoney(stats.totalOutstanding)}
           icon={Wallet}
           accent="success"
         />
@@ -60,16 +60,16 @@ export default async function AdminOverviewPage() {
           accent="success"
         />
         <KpiCard
-          label="Active Repair Benefits"
-          value={String(stats.activeRepairBenefits)}
-          icon={Wrench}
-          accent="yellow"
+          label="Overdue Accounts"
+          value={String(stats.overdueAccounts)}
+          icon={AlertTriangle}
+          accent="error"
         />
         <KpiCard
-          label="Repair Credit Outstanding"
-          value={formatMoney(stats.repairCreditOutstanding)}
+          label="Accounts Over Fuel Credit"
+          value={String(stats.accountsOverLimit)}
           icon={ShieldAlert}
-          accent="error"
+          accent="yellow"
         />
         <KpiCard
           label="Vehicles Under Management"

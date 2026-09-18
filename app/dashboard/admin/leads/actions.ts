@@ -6,6 +6,7 @@ import { Resend } from "resend";
 import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requestDocuments } from "@/app/dashboard/admin/documents/actions";
 import {
   getTemplateBySlug,
   sendEmail,
@@ -83,13 +84,13 @@ export async function sendFormInvite(
 
   const { data: lead } = await admin
     .from("leads")
-    .select("full_name, email")
+    .select("full_name, email, user_id")
     .eq("id", leadId)
     .maybeSingle();
 
   const { data: template } = await admin
     .from("form_templates")
-    .select("name, contract_document_path")
+    .select("name, slug, contract_document_path")
     .eq("id", formTemplateId)
     .eq("status", "published")
     .maybeSingle();
@@ -139,6 +140,30 @@ export async function sendFormInvite(
     .update({ status: "form_sent", updated_at: new Date().toISOString() })
     .eq("id", leadId);
   if (leadUpdateError) return { ok: false, error: leadUpdateError.message };
+
+  if (String(template.slug) === "vehicle-rental") {
+    const RENTAL_DOCUMENT_CATEGORIES = [
+      "id_copy",
+      "drivers_license_prdp",
+      "proof_of_residence",
+      "uber_profile",
+      "earnings_statement",
+      "selfie",
+    ];
+    const { data: existing } = await admin
+      .from("documents")
+      .select("category")
+      .eq("lead_id", leadId);
+    const existingCategories = new Set(
+      (existing ?? []).map((row) => String((row as { category: string }).category))
+    );
+    const categories = RENTAL_DOCUMENT_CATEGORIES.filter(
+      (category) => !existingCategories.has(category)
+    );
+    if (categories.length > 0 && lead.user_id) {
+      await requestDocuments(leadId, String(lead.user_id), categories);
+    }
+  }
 
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
   const link = `${baseUrl}/apply/form/${submissionId}?token=${accessToken}`;

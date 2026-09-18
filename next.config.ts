@@ -10,7 +10,7 @@ const cspHeader = `
   img-src 'self' data: blob: https://*.supabase.co https://bawhymljrkxnxqcotdws.supabase.co https://maps.google.com https://fonts.gstatic.com;
   font-src 'self' data: https://fonts.gstatic.com;
   connect-src 'self' https://*.supabase.co https://bawhymljrkxnxqcotdws.supabase.co https://maps.google.com;
-  frame-src https://maps.google.com;
+  frame-src https://maps.google.com https://www.google.com;
   object-src 'none';
   base-uri 'self';
   form-action 'self';

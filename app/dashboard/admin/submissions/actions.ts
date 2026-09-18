@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { escapeHtml, type EmailVariables } from "@/lib/email";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyUser } from "@/lib/notifications";
 import {
   getTemplateBySlug,
   sendEmail,
@@ -59,7 +60,7 @@ export async function updateSubmissionStatus(
 
   const { data: submission } = await admin
     .from("form_submissions")
-    .select("lead_id, data, form_templates(name), leads(full_name, email, user_id)")
+    .select("lead_id, data, form_templates(name, slug), leads(full_name, email, user_id)")
     .eq("id", id)
     .maybeSingle();
 
@@ -73,6 +74,7 @@ export async function updateSubmissionStatus(
   } | null) ?? null;
   const template = (submissionData.form_templates as {
     name?: string;
+    slug?: string;
   } | null) ?? null;
   const leadId = String(submissionData.lead_id);
   const formData =
@@ -95,24 +97,62 @@ export async function updateSubmissionStatus(
     .eq("id", leadId);
 
   if (status === "approved" && lead?.user_id) {
-    const carMakeModel = formData.carMakeModelYear
-      ? String(formData.carMakeModelYear)
-      : null;
-    const carRegistration = formData.carRegistration
-      ? String(formData.carRegistration)
-      : null;
-    const creditLimit = parseBandUpperBound(formData.weeklyCreditBand);
-    const garageId = formData.garageId ? String(formData.garageId) : null;
-    const fuelCode = await generateFuelCode(admin);
+    const templateSlug = template?.slug ?? "";
 
     const profilePatch: Record<string, unknown> = {
+      driver_status: "active",
       updated_at: new Date().toISOString(),
     };
-    if (carMakeModel) profilePatch.car_make_model = carMakeModel;
-    if (carRegistration) profilePatch.car_registration = carRegistration;
-    if (creditLimit !== null) profilePatch.credit_limit = creditLimit;
-    if (garageId) profilePatch.fuel_garage_id = garageId;
-    if (fuelCode) profilePatch.fuel_code = fuelCode;
+
+    if (templateSlug === "vehicle-rental") {
+      const idNumber = formData.idNumber ? String(formData.idNumber) : null;
+      const suburb = formData.suburb ? String(formData.suburb) : null;
+      const licenseValid = formData.hasValidLicensePrdp
+        ? String(formData.hasValidLicensePrdp)
+        : null;
+      const yearsExperience = formData.yearsExperience
+        ? String(formData.yearsExperience)
+        : null;
+      const preferredCategory = formData.preferredVehicleCategory
+        ? String(formData.preferredVehicleCategory)
+        : null;
+      const marketingSource = formData.marketingSource
+        ? String(formData.marketingSource)
+        : null;
+
+      profilePatch.primary_service = "vehicle-rental";
+      if (idNumber) profilePatch.id_number = idNumber;
+      if (suburb) profilePatch.suburb = suburb;
+      if (licenseValid) profilePatch.license_valid = licenseValid;
+      if (yearsExperience) profilePatch.years_experience = yearsExperience;
+      if (preferredCategory)
+        profilePatch.preferred_vehicle_category = preferredCategory;
+      if (marketingSource) profilePatch.marketing_source = marketingSource;
+
+      if (marketingSource) {
+        await admin
+          .from("leads")
+          .update({ source: marketingSource, updated_at: new Date().toISOString() })
+          .eq("id", leadId);
+      }
+    } else {
+      const carMakeModel = formData.carMakeModelYear
+        ? String(formData.carMakeModelYear)
+        : null;
+      const carRegistration = formData.carRegistration
+        ? String(formData.carRegistration)
+        : null;
+      const creditLimit = parseBandUpperBound(formData.weeklyCreditBand);
+      const garageId = formData.garageId ? String(formData.garageId) : null;
+      const fuelCode = await generateFuelCode(admin);
+
+      profilePatch.primary_service = "fuel-credit";
+      if (carMakeModel) profilePatch.car_make_model = carMakeModel;
+      if (carRegistration) profilePatch.car_registration = carRegistration;
+      if (creditLimit !== null) profilePatch.weekly_fuel_limit = creditLimit;
+      if (garageId) profilePatch.fuel_garage_id = garageId;
+      if (fuelCode) profilePatch.fuel_code = fuelCode;
+    }
 
     const { error: profileError } = await admin
       .from("profiles")
@@ -124,12 +164,12 @@ export async function updateSubmissionStatus(
 
   if ((status === "approved" || status === "rejected") && lead?.email) {
     const slug = status === "approved" ? "submission_approved_client" : "submission_rejected_client";
+    const clientName = lead.full_name ?? "there";
+    const formName = template?.name ?? "application";
     const apiKey = process.env.RESEND_API_KEY;
     if (apiKey) {
       const resend = new Resend(apiKey);
       const templateRow = await getTemplateBySlug(admin, slug);
-      const clientName = lead.full_name ?? "there";
-      const formName = template?.name ?? "application";
       const variables: EmailVariables = {
         "client.name": clientName,
         "form.name": formName,
@@ -158,6 +198,19 @@ export async function updateSubmissionStatus(
           ? "Application approved"
           : "Application update",
       body: `Status set to ${status}.`,
+    });
+
+    await notifyUser(lead.user_id, {
+      title:
+        status === "approved"
+          ? "Application approved"
+          : "Application update",
+      body:
+        status === "approved"
+          ? `Congratulations — your ${formName} has been approved.`
+          : "There is an update on your application. Contact support for details.",
+      link: "/dashboard/client",
+      type: "submission",
     });
   }
 
