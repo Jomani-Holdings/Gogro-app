@@ -179,6 +179,7 @@ export async function saveGarage(formData: FormData): Promise<void> {
     partner_type_id: clean(formData.get("partner_type_id")),
     active: formData.get("active") === "on",
     sort_order: Number(formData.get("sort_order") ?? 0),
+    alt_text: clean(formData.get("alt_text")),
     description: clean(formData.get("description")),
   };
 

@@ -241,7 +241,7 @@ export function DashboardShell({
       <div className="lg:pl-64">
         <header className="hidden lg:block sticky top-0 z-40 bg-white border-b border-grey/30">
           <div className="container mx-auto px-6 flex items-center justify-between h-16">
-            <h1 className="text-base font-semibold text-textdark">{roleLabel}</h1>
+            <h2 className="text-base font-semibold text-textdark">{roleLabel}</h2>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-navy text-white shrink-0">
                 <User size={16} />

@@ -1,5 +1,6 @@
 import { Users, Fuel, Wallet, Percent, Wrench, ShieldAlert, Car, Truck } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   getAdminDashboardStats,
   getAdminActiveDriversForDashboard,
@@ -9,8 +10,13 @@ import {
 import { formatMoney } from "@/lib/utils";
 import { KpiCard } from "@/app/components/dashboard/KpiCard";
 import { ActiveDriversTable } from "@/app/components/dashboard/ActiveDriversTable";
-import { FuelUsageByGarage } from "@/app/components/dashboard/FuelUsageByGarage";
 import { DebtBalanceOverview } from "@/app/components/dashboard/DebtBalanceOverview";
+
+const FuelUsageByGarage = dynamic(() =>
+  import("@/app/components/dashboard/FuelUsageByGarage").then(
+    (m) => m.FuelUsageByGarage
+  )
+);
 
 export default async function AdminOverviewPage() {
   const [stats, activeDrivers, fuelUsage, topDebtors] = await Promise.all([

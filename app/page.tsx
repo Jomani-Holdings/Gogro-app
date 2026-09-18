@@ -5,8 +5,9 @@ import { ServicesGrid } from "@/app/components/ServicesGrid";
 import { HowItWorks } from "@/app/components/HowItWorks";
 import { StatsBar } from "@/app/components/StatsBar";
 import { CTASection } from "@/app/components/CTASection";
+import { JsonLd } from "@/app/components/JsonLd";
 import { getWhatsAppLink } from "@/app/lib/site-config";
-import { resolveMetadata } from "@/lib/data/seo";
+import { resolveMetadata, SITE_URL } from "@/lib/data/seo";
 
 export async function generateMetadata(): Promise<Metadata> {
   return resolveMetadata("/");
@@ -15,6 +16,23 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function Home() {
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Go Gro Mobility",
+          alternateName: "Go Gro",
+          url: SITE_URL,
+          description:
+            "Helping mobility entrepreneurs move, operate and grow with fuel credit, vehicle rentals and vehicle management.",
+          inLanguage: "en-ZA",
+          publisher: {
+            "@type": "Organization",
+            name: "Go Gro Mobility",
+            url: SITE_URL,
+          },
+        }}
+      />
       <Hero />
       <TrustStrip />
       <ServicesGrid />

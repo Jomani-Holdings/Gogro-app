@@ -40,7 +40,7 @@ export default async function GalleryPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {images.map((image) => (
+            {images.map((image, index) => (
               <figure
                 key={image.id}
                 className="group overflow-hidden rounded-2xl bg-white border border-grey/40 shadow-sm"
@@ -50,6 +50,7 @@ export default async function GalleryPage() {
                     src={mediaUrl(image.storage_path)}
                     alt={image.alt_text ?? image.caption ?? image.filename}
                     fill
+                    priority={index === 0}
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     className="object-cover transition-transform duration-300 group-hover:scale-105"
                   />

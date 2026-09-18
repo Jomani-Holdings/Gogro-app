@@ -32,6 +32,7 @@ export type Garage = {
   active: boolean;
   sort_order: number;
   image_path: string | null;
+  alt_text: string | null;
   description: string | null;
 };
 

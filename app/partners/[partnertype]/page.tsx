@@ -4,7 +4,7 @@ import { PageHero } from "@/app/components/PageHero";
 import { GarageGrid } from "@/app/components/partners/GarageGrid";
 import { getPartnerTypes, getPartnerTypeBySlug } from "@/lib/data/partner-types";
 import { getGaragesByTypeSlug } from "@/lib/data/garages";
-import { getSeoMeta } from "@/lib/data/seo";
+import { getSeoMeta, DEFAULT_OG_IMAGE } from "@/lib/data/seo";
 
 export async function generateStaticParams() {
   const types = await getPartnerTypes();
@@ -21,12 +21,29 @@ export async function generateMetadata({
   if (!type) return {};
   const routePath = `/partners/${partnertype}`;
   const seo = await getSeoMeta(routePath);
+  const title = seo?.meta_title ?? `${type.name} | Go Gro Mobility`;
+  const description = seo?.meta_description ?? type.description ?? undefined;
   return {
-    title: seo?.meta_title ?? `${type.name} | Go Gro Mobility`,
-    description: seo?.meta_description ?? type.description ?? undefined,
+    title,
+    description,
     robots: {
       index: seo ? !seo.noindex : true,
       follow: true,
+    },
+    alternates: {
+      canonical: seo?.canonical_path ?? routePath,
+    },
+    openGraph: {
+      type: "website",
+      siteName: "Go Gro Mobility",
+      title,
+      description,
+      images: [seo?.og_image_url ?? DEFAULT_OG_IMAGE],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
     },
   };
 }
