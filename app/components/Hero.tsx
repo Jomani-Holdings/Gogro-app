@@ -29,6 +29,12 @@ export function Hero() {
 
   return (
     <section className="relative w-full h-[70vh] min-h-[480px] flex items-center justify-center overflow-hidden">
+      <link
+        rel="preload"
+        as="image"
+        href="/video/hero-poster.jpg"
+        fetchPriority="high"
+      />
       <div className="absolute inset-0 w-full h-full bg-navy-dark z-0">
         {!reduceMotion ? (
           <video

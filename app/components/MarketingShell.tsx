@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Footer } from "@/app/components/Footer";
 import { WhatsAppFAB } from "@/app/components/WhatsAppFAB";
+import { CookieConsent } from "@/app/components/CookieConsent";
 
 export function MarketingShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -19,6 +20,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1">{children}</main>
       <Footer />
       <WhatsAppFAB />
+      <CookieConsent />
     </div>
   );
 }

@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
+import { JsonLd } from "@/app/components/JsonLd";
 import { getServices, getServiceBySlug } from "@/lib/data/services";
 import { FALLBACK_SERVICE_DETAILS } from "@/lib/data/service-details";
 import { renderRichText } from "@/lib/tiptap/render";
-import { getSeoMeta } from "@/lib/data/seo";
+import { getSeoMeta, DEFAULT_OG_IMAGE, SITE_URL } from "@/lib/data/seo";
 
 export async function generateStaticParams() {
   const services = await getServices();
@@ -22,22 +23,30 @@ export async function generateMetadata({
   if (!service) return {};
   const routePath = `/services/${slug}`;
   const seo = await getSeoMeta(routePath);
-  if (seo?.meta_title || seo?.meta_description) {
-    return {
-      title: seo.meta_title ?? `${service.name} | Go Gro Mobility`,
-      description: seo.meta_description ?? service.description ?? undefined,
-      robots: {
-        index: !seo.noindex,
-        follow: true,
-      },
-      alternates: {
-        canonical: seo.canonical_path ?? routePath,
-      },
-    };
-  }
+  const title = seo?.meta_title ?? `${service.name} | Go Gro Mobility`;
+  const description = seo?.meta_description ?? service.description ?? undefined;
   return {
-    title: `${service.name} | Go Gro Mobility`,
-    description: service.description ?? undefined,
+    title,
+    description,
+    robots: {
+      index: seo ? !seo.noindex : true,
+      follow: true,
+    },
+    alternates: {
+      canonical: seo?.canonical_path ?? routePath,
+    },
+    openGraph: {
+      type: "website",
+      siteName: "Go Gro Mobility",
+      title,
+      description,
+      images: [seo?.og_image_url ?? DEFAULT_OG_IMAGE],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
   };
 }
 
@@ -57,6 +66,25 @@ export default async function ServiceDetailPage({
 
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          name: service.name,
+          description: service.description ?? undefined,
+          serviceType: service.name,
+          url: `${SITE_URL}/services/${service.slug}`,
+          provider: {
+            "@type": "Organization",
+            name: "Go Gro Mobility",
+            url: SITE_URL,
+          },
+          areaServed: {
+            "@type": "Country",
+            name: "South Africa",
+          },
+        }}
+      />
       <PageHero
         title={service.name}
         subtitle={service.description ?? undefined}

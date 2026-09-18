@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import type { JSONContent } from "@tiptap/core";
 import { saveService } from "@/app/dashboard/admin/cms-actions";
-import { RichTextEditor } from "@/app/components/dashboard/RichTextEditor";
+
+const RichTextEditor = dynamic(
+  () =>
+    import("@/app/components/dashboard/RichTextEditor").then(
+      (m) => m.RichTextEditor
+    ),
+  { ssr: false }
+);
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";

@@ -6,6 +6,8 @@ import type { SeoMeta } from "@/lib/data/types";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://gogro.co.za";
 
+export const DEFAULT_OG_IMAGE = "/opengraph-image";
+
 export const STATIC_ROUTES = [
   "/",
   "/about",
@@ -116,7 +118,9 @@ export async function getSitemapRoutes(): Promise<string[]> {
       .eq("noindex", false);
 
     if (error || !data || data.length === 0) return getAllSeoRoutes();
-    return (data as { route_path: string }[]).map((row) => row.route_path);
+    return (data as { route_path: string }[])
+      .map((row) => row.route_path)
+      .filter((route) => route !== "/offline");
   } catch {
     return getAllSeoRoutes();
   }
@@ -145,10 +149,11 @@ export async function resolveMetadata(routePath: string): Promise<Metadata> {
   const ogDescription = seo?.og_description ?? description;
   if (ogTitle || ogDescription || seo?.og_image_url) {
     metadata.openGraph = {
+      type: "website",
       title: ogTitle ?? undefined,
       description: ogDescription ?? undefined,
       siteName: "Go Gro Mobility",
-      images: seo?.og_image_url ? [seo.og_image_url] : undefined,
+      images: [seo?.og_image_url ?? DEFAULT_OG_IMAGE],
     };
   }
 

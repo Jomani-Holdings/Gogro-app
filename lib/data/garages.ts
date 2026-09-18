@@ -3,7 +3,7 @@ import type { Garage } from "@/lib/data/types";
 
 type FallbackGarage = Omit<
   Garage,
-  "active" | "sort_order" | "image_path" | "description"
+  "active" | "sort_order" | "image_path" | "alt_text" | "description"
 > & {
   partner_type_slug: string;
 };
@@ -37,6 +37,7 @@ function fallbackForType(slug?: string): Garage[] {
     active: true,
     sort_order: 0,
     image_path: null,
+    alt_text: null,
     description: null,
   }));
 }
@@ -53,6 +54,7 @@ function mapRow(row: Record<string, unknown>): Garage {
     active: Boolean(row.active),
     sort_order: Number(row.sort_order ?? 0),
     image_path: row.image_path ? String(row.image_path) : null,
+    alt_text: row.alt_text ? String(row.alt_text) : null,
     description: row.description ? String(row.description) : null,
   };
 }

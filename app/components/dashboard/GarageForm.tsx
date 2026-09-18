@@ -24,6 +24,7 @@ type GarageData = {
   active: boolean;
   sort_order: number;
   image_path: string | null;
+  alt_text: string | null;
   description: string | null;
 };
 
@@ -200,6 +201,23 @@ export function GarageForm({
             Remove current image
           </label>
         ) : null}
+      </div>
+
+      <div>
+        <label htmlFor="alt_text" className={labelClass}>
+          Alt Text
+        </label>
+        <input
+          id="alt_text"
+          name="alt_text"
+          type="text"
+          defaultValue={garage?.alt_text ?? ""}
+          placeholder="Describe the image, e.g. Astron Energy Marlborough Street forecourt."
+          className={inputClass}
+        />
+        <p className="mt-1 text-xs text-textdark/50">
+          Helps screen readers and search engines understand the partner image.
+        </p>
       </div>
 
       <div>
