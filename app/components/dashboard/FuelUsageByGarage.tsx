@@ -35,10 +35,13 @@ export function FuelUsageByGarage({
 
       {data.length === 0 || totalLitres === 0 ? (
         <div className="flex items-center justify-center h-48 text-textdark/50 text-sm">
-          No fuel issued this month yet.
+          No fuel issued this cycle yet.
         </div>
       ) : (
         <>
+          <p className="text-sm text-textdark/60 mb-3">
+            Fuel issued during the current Tue–Mon cycle.
+          </p>
           <div className="flex flex-col items-center gap-2">
             <div className="h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">

@@ -1,27 +1,75 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ClientBalances = {
-  fuel_balance: number;
-  repair_balance: number;
-  total_balance: number;
+  driver_balance: number;
+  weekly_fuel_limit: number;
+  weekly_fuel_issued: number;
+  weekly_fuel_available: number;
+  next_payment_due: string | null;
+  is_overdue: boolean;
 };
+
+export type ClientProgrammeContext = {
+  primary_service: string | null;
+  hasVehicle: boolean;
+  vehicle: { make_model: string; registration: string } | null;
+};
+
+export async function getClientProgrammeContext(
+  userId: string
+): Promise<ClientProgrammeContext> {
+  const supabase = createAdminClient();
+  const { data: summary } = await supabase
+    .from("driver_account_summary")
+    .select("id, primary_service")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!summary) {
+    return { primary_service: null, hasVehicle: false, vehicle: null };
+  }
+
+  const profileId = String(summary.id);
+  const { data: vehicles } = await supabase
+    .from("vehicles")
+    .select("make_model, registration")
+    .eq("driver_id", profileId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const vehicle = (vehicles ?? [])[0] as
+    | { make_model: string; registration: string }
+    | undefined;
+
+  return {
+    primary_service: summary.primary_service
+      ? String(summary.primary_service)
+      : null,
+    hasVehicle: Boolean(vehicle),
+    vehicle: vehicle ? { make_model: vehicle.make_model, registration: vehicle.registration } : null,
+  };
+}
 
 export async function getClientBalances(userId: string): Promise<ClientBalances | null> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("profiles")
-    .select("fuel_balance, repair_balance")
+    .from("driver_account_summary")
+    .select(
+      "driver_balance, weekly_fuel_limit, weekly_fuel_issued, weekly_fuel_available, next_payment_due, is_overdue"
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error || !data) return null;
 
-  const fuel = Number((data as Record<string, unknown>).fuel_balance ?? 0);
-  const repair = Number((data as Record<string, unknown>).repair_balance ?? 0);
+  const row = data as Record<string, unknown>;
   return {
-    fuel_balance: fuel,
-    repair_balance: repair,
-    total_balance: fuel + repair,
+    driver_balance: Number(row.driver_balance ?? 0),
+    weekly_fuel_limit: Number(row.weekly_fuel_limit ?? 2000),
+    weekly_fuel_issued: Number(row.weekly_fuel_issued ?? 0),
+    weekly_fuel_available: Number(row.weekly_fuel_available ?? 0),
+    next_payment_due: row.next_payment_due ? String(row.next_payment_due) : null,
+    is_overdue: Boolean(row.is_overdue),
   };
 }
 
@@ -122,16 +170,28 @@ export async function getClientRequiredActions(
   }
 
   // 4. Payment due when there is an outstanding balance.
-  if (balances && balances.total_balance > 0) {
-    actions.push({
-      key: "make_payment",
-      label: "Settle your balance",
-      description: `Outstanding: R${balances.total_balance.toLocaleString("en-ZA", {
-        maximumFractionDigits: 2,
-      })}.`,
-      href: "/dashboard/client/support",
-      priority: "medium",
-    });
+  if (balances) {
+    if (balances.is_overdue) {
+      actions.push({
+        key: "overdue",
+        label: "OVERDUE — settle your balance",
+        description: `Your account is overdue. Outstanding: R${balances.driver_balance.toLocaleString("en-ZA", {
+          maximumFractionDigits: 2,
+        })}.`,
+        href: "/dashboard/client/support",
+        priority: "high",
+      });
+    } else if (balances.driver_balance > 0) {
+      actions.push({
+        key: "make_payment",
+        label: "Settle your balance",
+        description: `Outstanding: R${balances.driver_balance.toLocaleString("en-ZA", {
+          maximumFractionDigits: 2,
+        })}.`,
+        href: "/dashboard/client/support",
+        priority: "medium",
+      });
+    }
   }
 
   return actions;

@@ -6,6 +6,7 @@ import { Resend } from "resend";
 import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyAllAdmins } from "@/lib/notifications";
 import { getPublicForm } from "@/lib/data/apply-public";
 import { buildDynamicSchema } from "@/lib/validation/dynamicForm";
 import {
@@ -102,6 +103,16 @@ export async function submitPublicForm(
     email: email || prev.email,
     formName: payload.template.name,
     submissionId,
+  });
+
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  await notifyAllAdmins({
+    title: "Application submitted",
+    body: `${fullName || prev.full_name || "A client"} submitted their ${
+      payload.template.name
+    }.`,
+    link: `${baseUrl}/dashboard/admin/submissions/${submissionId}`,
+    type: "submission",
   });
 
   return { ok: true };

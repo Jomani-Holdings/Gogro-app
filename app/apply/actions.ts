@@ -5,6 +5,7 @@ import { waitUntil } from "@vercel/functions";
 import { Resend } from "resend";
 import { escapeHtml, emailButton, type EmailVariables } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyAllAdmins } from "@/lib/notifications";
 import { expressJoinSchema } from "@/lib/validation/expressJoin";
 import {
   getTemplateBySlug,
@@ -101,6 +102,16 @@ export async function submitExpressJoin(
   const leadId = lead?.id ? String(lead.id) : "";
   const serviceName =
     (lead?.services as { name?: string } | null)?.name ?? "";
+
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  if (leadId) {
+    await notifyAllAdmins({
+      title: "New lead",
+      body: `${payload.fullName} expressed interest in ${serviceName || "a service"}.`,
+      link: `${baseUrl}/dashboard/admin/leads/${leadId}`,
+      type: "lead",
+    });
+  }
 
   waitUntil(
     sendExpressJoinEmails({

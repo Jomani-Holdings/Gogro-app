@@ -24,7 +24,7 @@ export function ActiveDriversTable({
                 </th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="hidden sm:table-cell px-4 py-3 font-medium">
-                  Fuel Credit
+                  Balance
                 </th>
                 <th className="px-4 py-3 font-medium">
                   Fuel Used (This Month)
@@ -58,7 +58,12 @@ export function ActiveDriversTable({
                     </span>
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 text-textdark/80">
-                    {formatMoney(driver.fuel_balance)}
+                    {formatMoney(driver.driver_balance)}
+                    {driver.is_overdue ? (
+                      <span className="inline-block ml-2 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-error text-white">
+                        OVERDUE
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-textdark/80">
                     {driver.fuel_used_this_month > 0

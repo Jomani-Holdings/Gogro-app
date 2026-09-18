@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { siteConfig } from "@/app/lib/site-config";
 import { LogoutButton } from "@/app/components/dashboard/LogoutButton";
+import { NotificationBell } from "@/app/components/dashboard/NotificationBell";
 import type { NavItem, NavGroup } from "@/lib/dashboard-nav";
 
 const iconMap: Record<string, LucideIcon> = {
@@ -89,8 +90,13 @@ export function DashboardShell({
 
   const roleLabel = role === "admin" ? "Admin Console" : "Client Portal";
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+  const isActive = (href: string) => {
+    if (pathname === href) return true;
+    if (href === "/dashboard/admin" || href === "/dashboard/client") {
+      return false;
+    }
+    return pathname.startsWith(href + "/");
+  };
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -234,7 +240,7 @@ export function DashboardShell({
             <Menu size={20} />
           </button>
           <span className="text-sm font-semibold text-white">{roleLabel}</span>
-          <span className="w-9" />
+          <NotificationBell onDark />
         </div>
       </header>
 
@@ -243,6 +249,7 @@ export function DashboardShell({
           <div className="container mx-auto px-6 flex items-center justify-between h-16">
             <h2 className="text-base font-semibold text-textdark">{roleLabel}</h2>
             <div className="flex items-center gap-3">
+              <NotificationBell />
               <span className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-navy text-white shrink-0">
                 <User size={16} />
               </span>
