@@ -19,7 +19,7 @@ export function GarageGrid({
   return (
     <div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-        {garages.map((garage) => {
+        {garages.map((garage, index) => {
           const hasImage = Boolean(garage.image_path);
           return (
             <div
@@ -30,8 +30,9 @@ export function GarageGrid({
                 {hasImage ? (
                   <Image
                     src={mediaUrl(garage.image_path!)}
-                    alt={`${garage.name} image`}
+                    alt={garage.alt_text ?? `${garage.name} image`}
                     fill
+                    priority={index === 0}
                     className="object-cover"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   />

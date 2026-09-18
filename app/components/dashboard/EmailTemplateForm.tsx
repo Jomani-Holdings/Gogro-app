@@ -1,19 +1,25 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { generateHTML } from "@tiptap/html";
 import type { JSONContent } from "@tiptap/core";
 import { editorExtensions } from "@/lib/tiptap/extensions";
-import {
-  RichTextEditor,
-  type EditorVariable,
-} from "@/app/components/dashboard/RichTextEditor";
+import type { EditorVariable } from "@/app/components/dashboard/RichTextEditor";
 import {
   saveEmailTemplate,
   sendTestEmail,
 } from "@/app/dashboard/admin/email-template-actions";
 import { EMAIL_SAMPLE_VALUES } from "@/lib/email-samples";
 import type { EmailTemplate } from "@/lib/data/admin";
+
+const RichTextEditor = dynamic(
+  () =>
+    import("@/app/components/dashboard/RichTextEditor").then(
+      (m) => m.RichTextEditor
+    ),
+  { ssr: false }
+);
 
 function interpolate(value: string, variables: Record<string, string>): string {
   return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, key: string) => {
