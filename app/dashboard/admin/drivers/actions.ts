@@ -27,7 +27,11 @@ function toNumber(value: FormDataEntryValue | null): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
-function buildProfilePatch(formData: FormData): Record<string, unknown> {
+function buildProfilePatch(
+  formData: FormData,
+  adminProfileId?: string
+): Record<string, unknown> {
+  const arrangementDueDate = clean(formData.get("payment_arrangement_due_date"));
   return {
     full_name: clean(formData.get("full_name")),
     phone: clean(formData.get("phone")),
@@ -35,9 +39,24 @@ function buildProfilePatch(formData: FormData): Record<string, unknown> {
     driver_status: String(formData.get("driver_status") ?? "pending"),
     car_make_model: clean(formData.get("car_make_model")),
     car_registration: clean(formData.get("car_registration")),
-    credit_limit: toNumber(formData.get("credit_limit")),
+    id_number: clean(formData.get("id_number")),
+    suburb: clean(formData.get("suburb")),
+    license_valid: clean(formData.get("license_valid")),
+    years_experience: clean(formData.get("years_experience")),
+    preferred_vehicle_category: clean(formData.get("preferred_vehicle_category")),
+    marketing_source: clean(formData.get("marketing_source")),
+    weekly_fuel_limit:
+      toNumber(formData.get("weekly_fuel_limit")) ?? 2000,
     fuel_code: clean(formData.get("fuel_code")),
     fuel_garage_id: clean(formData.get("fuel_garage_id")),
+    payment_due_day:
+      clean(formData.get("payment_due_day")) ?? "tuesday",
+    payment_due_time: clean(formData.get("payment_due_time")) ?? "13:00",
+    payment_arrangement_due_date: arrangementDueDate,
+    payment_arrangement_notes: clean(formData.get("payment_arrangement_notes")),
+    payment_arrangement_approved_by: arrangementDueDate
+      ? adminProfileId ?? null
+      : null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -99,7 +118,7 @@ async function syncDriverVehicle(
 }
 
 export async function createDriver(formData: FormData): Promise<DriverActionResult> {
-  await requireAdmin();
+  const adminProfile = await requireAdmin();
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return { ok: false, error: "Email is required." };
@@ -123,7 +142,7 @@ export async function createDriver(formData: FormData): Promise<DriverActionResu
   const userId = created.user?.id;
   if (!userId) return { ok: false, error: "Could not create user." };
 
-  const patch = buildProfilePatch(formData);
+  const patch = buildProfilePatch(formData, adminProfile.id);
   delete patch.email;
 
   const { error } = await admin.from("profiles").upsert(
@@ -156,14 +175,14 @@ export async function updateDriver(
   id: string,
   formData: FormData
 ): Promise<DriverActionResult> {
-  await requireAdmin();
+  const adminProfile = await requireAdmin();
 
   const status = String(formData.get("driver_status") ?? "pending");
   if (!DRIVER_STATUSES.includes(status)) {
     return { ok: false, error: "Invalid driver status." };
   }
 
-  const patch = buildProfilePatch(formData);
+  const patch = buildProfilePatch(formData, adminProfile.id);
   delete patch.email;
 
   const admin = createAdminClient();

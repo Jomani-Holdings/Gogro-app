@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyUser } from "@/lib/notifications";
 import type { VehicleStatus, VehicleOwnership } from "@/lib/data/types";
 
 export type VehicleActionResult = {
@@ -41,6 +42,26 @@ function buildVehiclePatch(formData: FormData): Record<string, unknown> {
   };
 }
 
+async function notifyDriverOfVehicle(
+  admin: ReturnType<typeof createAdminClient>,
+  driverId: string | null,
+  makeModel: string | null
+) {
+  if (!driverId) return;
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("user_id")
+    .eq("id", driverId)
+    .maybeSingle();
+  if (!profile?.user_id) return;
+  await notifyUser(String(profile.user_id), {
+    title: "Vehicle assigned",
+    body: `A vehicle${makeModel ? ` (${makeModel})` : ""} has been assigned to you.`,
+    link: "/dashboard/client",
+    type: "vehicle",
+  });
+}
+
 export async function createVehicle(
   formData: FormData
 ): Promise<VehicleActionResult> {
@@ -65,6 +86,12 @@ export async function createVehicle(
     }
     return { ok: false, error: error.message };
   }
+
+  await notifyDriverOfVehicle(
+    admin,
+    clean(formData.get("driver_id")),
+    clean(formData.get("make_model"))
+  );
 
   revalidatePath("/dashboard/admin/vehicles");
   return { ok: true };
@@ -95,6 +122,12 @@ export async function updateVehicle(
     }
     return { ok: false, error: error.message };
   }
+
+  await notifyDriverOfVehicle(
+    admin,
+    clean(formData.get("driver_id")),
+    clean(formData.get("make_model"))
+  );
 
   revalidatePath("/dashboard/admin/vehicles");
   revalidatePath(`/dashboard/admin/vehicles/${id}`);

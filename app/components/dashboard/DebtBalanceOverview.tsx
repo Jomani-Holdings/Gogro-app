@@ -29,8 +29,7 @@ export function DebtBalanceOverview({
                   {debtor.full_name ?? "Unknown"}
                 </p>
                 <p className="text-xs text-textdark/50 mt-0.5">
-                  Fuel: {formatMoney(debtor.fuel_balance)} · Repair:{" "}
-                  {formatMoney(debtor.repair_balance)}
+                  Balance: {formatMoney(debtor.driver_balance)}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">

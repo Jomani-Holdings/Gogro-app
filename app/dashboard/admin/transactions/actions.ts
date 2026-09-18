@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyUser } from "@/lib/notifications";
 import {
   TRANSACTION_TYPES,
   type TransactionType,
@@ -33,7 +34,7 @@ export async function logTransaction(
   const vehicleId = clean(formData.get("vehicle_id"));
   const garageId = clean(formData.get("garage_id"));
   const createdRaw = clean(formData.get("created_at"));
-  const confirmOverride = formData.get("confirm_override") === "on";
+  const overrideAction = clean(formData.get("override_action"));
 
   if (!driverId) return { ok: false, error: "Driver is required." };
   if (!type || !TRANSACTION_TYPES.some((t) => t.value === type)) {
@@ -52,28 +53,35 @@ export async function logTransaction(
     litres = n;
   }
 
-  // Warn (but do not block) when a fuel issue would exceed the credit limit.
-  if (type === "fuel_issue" && !confirmOverride) {
-    const admin = createAdminClient();
+  const admin = createAdminClient();
+
+  // Warn (then require an explicit choice) when a fuel issue would exceed the
+  // driver's weekly fuel limit for the current Tue-Mon cycle.
+  let overLimit = false;
+  let weeklyFuelLimit = 2000;
+  if (type === "fuel_issue") {
     const { data: profile } = await admin
-      .from("profiles")
-      .select("credit_limit, fuel_balance")
+      .from("driver_account_summary")
+      .select("weekly_fuel_limit, weekly_fuel_issued, overlimit_count")
       .eq("id", driverId)
       .maybeSingle();
 
-    const creditLimit = profile?.credit_limit
-      ? Number(profile.credit_limit)
-      : null;
-    const currentBalance = profile?.fuel_balance
-      ? Number(profile.fuel_balance)
+    weeklyFuelLimit = profile?.weekly_fuel_limit
+      ? Number(profile.weekly_fuel_limit)
+      : 2000;
+    const weeklyIssued = profile?.weekly_fuel_issued
+      ? Number(profile.weekly_fuel_issued)
       : 0;
 
-    if (creditLimit !== null && currentBalance + amount > creditLimit) {
-      return {
-        ok: false,
-        warning: `This fuel issue takes the driver's balance above their credit limit of R${creditLimit.toLocaleString("en-ZA")}. You can log it anyway.`,
-        requiresConfirmation: true,
-      };
+    if (weeklyIssued + amount > weeklyFuelLimit) {
+      overLimit = true;
+      if (overrideAction !== "authorize" && overrideAction !== "unauthorized") {
+        return {
+          ok: false,
+          warning: `This fuel issue takes the driver's weekly usage above their R${weeklyFuelLimit.toLocaleString("en-ZA")} weekly fuel limit. Authorize the override, or process it as unauthorized to log the R100 penalty.`,
+          requiresConfirmation: true,
+        };
+      }
     }
   }
 
@@ -82,8 +90,7 @@ export async function logTransaction(
       ? new Date(createdRaw).toISOString()
       : new Date().toISOString();
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("transactions").insert({
+  const insertPayload: Record<string, unknown> = {
     driver_id: driverId,
     vehicle_id: vehicleId,
     garage_id: garageId,
@@ -91,9 +98,66 @@ export async function logTransaction(
     amount,
     litres,
     created_at,
-  });
+  };
 
+  if (type === "fuel_issue" && overLimit) {
+    insertPayload.authorized_overlimit = overrideAction === "authorize";
+  }
+
+  const { error } = await admin.from("transactions").insert(insertPayload);
   if (error) return { ok: false, error: error.message };
+
+  const typeLabel =
+    TRANSACTION_TYPES.find((t) => t.value === type)?.label ?? type;
+  const { data: driverProfile } = await admin
+    .from("profiles")
+    .select("user_id, full_name")
+    .eq("id", driverId)
+    .maybeSingle();
+  if (driverProfile?.user_id) {
+    await notifyUser(String(driverProfile.user_id), {
+      title: "Account updated",
+      body: `${typeLabel} of R${amount.toLocaleString("en-ZA", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })} has been added to your account.`,
+      link: "/dashboard/client",
+      type: "transaction",
+    });
+  }
+
+  // Unauthorized over-limit fuel issue: auto-log the R100 penalty fee.
+  if (type === "fuel_issue" && overLimit && overrideAction === "unauthorized") {
+    const penaltyPayload: Record<string, unknown> = {
+      driver_id: driverId,
+      vehicle_id: vehicleId,
+      garage_id: garageId,
+      type: "penalty_fee",
+      amount: 100,
+      created_at,
+    };
+
+    const { error: penaltyError } = await admin
+      .from("transactions")
+      .insert(penaltyPayload);
+    if (penaltyError) return { ok: false, error: penaltyError.message };
+
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("overlimit_count")
+      .eq("id", driverId)
+      .maybeSingle();
+    const currentCount = Number(profile?.overlimit_count ?? 0);
+
+    await admin
+      .from("profiles")
+      .update({
+        overlimit_count: currentCount + 1,
+        last_penalty_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", driverId);
+  }
 
   revalidatePath("/dashboard/admin/drivers");
   revalidatePath("/dashboard/admin");

@@ -93,6 +93,7 @@ export function GarageForm({
 
   return (
     <form onSubmit={onSubmit} className="bg-white border border-grey/40 rounded-2xl p-6 max-w-xl space-y-5">
+      <input type="hidden" name="id" defaultValue={garage?.id ?? "new"} />
       {error ? (
         <p className="rounded-lg bg-error/10 border border-error/30 px-4 py-3 text-sm text-error">
           {error}

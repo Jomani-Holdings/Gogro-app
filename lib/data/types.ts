@@ -58,9 +58,11 @@ export type Vehicle = {
 export type TransactionType =
   | "fuel_issue"
   | "repair_issue"
+  | "rental_fee"
+  | "penalty_fee"
   | "fuel_repayment"
   | "repair_repayment"
-  | "rental_fee"
+  | "rental_repayment"
   | "opening_balance"
   | "balance_correction_increase"
   | "balance_correction_decrease";
@@ -72,9 +74,11 @@ export const TRANSACTION_TYPES: {
 }[] = [
   { value: "fuel_issue", label: "Fuel Issue", affectsLitres: true },
   { value: "repair_issue", label: "Repair Issue", affectsLitres: false },
+  { value: "rental_fee", label: "Rental Fee", affectsLitres: false },
+  { value: "penalty_fee", label: "Penalty Fee", affectsLitres: false },
   { value: "fuel_repayment", label: "Fuel Repayment", affectsLitres: false },
   { value: "repair_repayment", label: "Repair Repayment", affectsLitres: false },
-  { value: "rental_fee", label: "Rental Fee", affectsLitres: false },
+  { value: "rental_repayment", label: "Rental Repayment", affectsLitres: false },
   { value: "opening_balance", label: "Opening Balance", affectsLitres: false },
   { value: "balance_correction_increase", label: "Balance Correction (+)", affectsLitres: false },
   { value: "balance_correction_decrease", label: "Balance Correction (−)", affectsLitres: false },
@@ -83,9 +87,11 @@ export const TRANSACTION_TYPES: {
 export const TRANSACTION_LABELS: Record<TransactionType, string> = {
   fuel_issue: "Fuel Issue",
   repair_issue: "Repair Issue",
+  rental_fee: "Rental Fee",
+  penalty_fee: "Penalty Fee",
   fuel_repayment: "Fuel Repayment",
   repair_repayment: "Repair Repayment",
-  rental_fee: "Rental Fee",
+  rental_repayment: "Rental Repayment",
   opening_balance: "Opening Balance",
   balance_correction_increase: "Balance Correction (+)",
   balance_correction_decrease: "Balance Correction (−)",
@@ -106,11 +112,11 @@ export type Transaction = {
 
 export type DashboardStats = {
   activeDrivers: number;
-  fuelIssuedThisWeek: { amount: number; litres: number };
-  outstandingFuelCredit: number;
+  fuelIssuedThisCycle: { amount: number; litres: number };
+  totalOutstanding: number;
   repaymentRate: number;
-  activeRepairBenefits: number;
-  repairCreditOutstanding: number;
+  overdueAccounts: number;
+  accountsOverLimit: number;
   vehiclesUnderManagement: number;
   rentalVehicles: number;
 };
@@ -119,10 +125,13 @@ export type DashboardActiveDriver = {
   id: string;
   full_name: string | null;
   email: string | null;
-  fuel_balance: number | null;
-  repair_balance: number | null;
+  driver_balance: number;
   vehicle: { id: string; make_model: string; registration: string } | null;
   fuel_used_this_month: number;
+  weekly_fuel_limit: number;
+  weekly_fuel_issued: number;
+  next_payment_due: string | null;
+  is_overdue: boolean;
 };
 
 export type FuelUsageByGarage = {
@@ -135,8 +144,7 @@ export type FuelUsageByGarage = {
 export type TopDebtor = {
   id: string;
   full_name: string | null;
-  fuel_balance: number;
-  repair_balance: number;
+  driver_balance: number;
   total_balance: number;
 };
 
@@ -260,9 +268,11 @@ export type SeoMeta = {
 
 export type DocumentCategory =
   | "id_copy"
+  | "drivers_license_prdp"
   | "license_disc"
   | "vehicle_image"
   | "uber_profile"
+  | "earnings_statement"
   | "proof_of_residence"
   | "selfie"
   | "signed_contract";
@@ -278,6 +288,11 @@ export const DOCUMENT_CATEGORIES: {
     description: "A clear copy of your South African ID or passport.",
   },
   {
+    value: "drivers_license_prdp",
+    label: "Driver's License + PrDP",
+    description: "A clear copy of your valid South African driver's license with PrDP.",
+  },
+  {
     value: "license_disc",
     label: "Vehicle License Disc",
     description: "A copy of your current vehicle license disc.",
@@ -289,18 +304,23 @@ export const DOCUMENT_CATEGORIES: {
   },
   {
     value: "uber_profile",
-    label: "Uber Profile Screenshot",
-    description: "A screenshot of your Uber profile with your personal details.",
+    label: "eHailing Profile Screenshot",
+    description: "A screenshot of your Uber/Bolt/e-hailing driver profile.",
+  },
+  {
+    value: "earnings_statement",
+    label: "Latest Earnings Statement",
+    description: "Your latest driver earnings statement — preferably the last 4 weeks.",
   },
   {
     value: "proof_of_residence",
     label: "Proof of Residence",
-    description: "A recent proof of residence document.",
+    description: "A recent proof of residence document (not older than 3 months).",
   },
   {
     value: "selfie",
     label: "Selfie for Driver Profile",
-    description: "A selfie image for your driver profile.",
+    description: "A recent, clear selfie photograph for your driver profile.",
   },
   {
     value: "signed_contract",

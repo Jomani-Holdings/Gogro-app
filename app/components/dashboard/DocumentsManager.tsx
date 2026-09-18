@@ -27,10 +27,12 @@ export function DocumentsManager({
   leadId,
   userId,
   documents,
+  hideHeading = false,
 }: {
   leadId: string | null;
   userId: string | null;
   documents: Document[];
+  hideHeading?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -119,7 +121,9 @@ export function DocumentsManager({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-navy">Documents</h2>
+        {hideHeading ? null : (
+          <h2 className="text-lg font-semibold text-navy">Documents</h2>
+        )}
         {leadId && userId ? (
           <RequestDocumentsModal
             leadId={leadId}

@@ -11,6 +11,8 @@ import { getDocumentsForUser } from "@/lib/data/documents";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { DriverForm } from "@/app/components/dashboard/DriverForm";
 import { DocumentsManager } from "@/app/components/dashboard/DocumentsManager";
+import { RequestDocumentsModal } from "@/app/components/dashboard/RequestDocumentsModal";
+import { Accordion } from "@/app/components/dashboard/Accordion";
 import { LogTransactionModal } from "@/app/components/dashboard/LogTransactionModal";
 import { SuspendDriverButton } from "@/app/components/dashboard/SuspendDriverButton";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
@@ -94,6 +96,11 @@ export default async function AdminDriverProfilePage({
               Suspended
             </span>
           ) : null}
+          {driver.is_overdue ? (
+            <span className="inline-block rounded-full px-3 py-1 text-sm font-semibold bg-error text-white">
+              OVERDUE
+            </span>
+          ) : null}
           <LogTransactionModal
             driverId={driver.id}
             driverName={driver.full_name}
@@ -128,21 +135,51 @@ export default async function AdminDriverProfilePage({
           <Field label="Date Created" value={formatDate(driver.created_at)} />
           <Field label="Car Make / Model" value={driver.car_make_model} />
           <Field label="Car Registration" value={driver.car_registration} />
+          <Field label="ID / Passport Number" value={driver.id_number} />
+          <Field label="Area / Suburb" value={driver.suburb} />
+          <Field label="Valid License (PrDP)" value={driver.license_valid} />
+          <Field label="eHailing Experience" value={driver.years_experience} />
           <Field
-            label="Credit Limit"
-            value={formatMoney(driver.credit_limit, 2)}
+            label="Preferred Vehicle Category"
+            value={driver.preferred_vehicle_category}
           />
-          <Field label="Fuel Balance" value={formatMoney(driver.fuel_balance, 2)} />
+          <Field label="Marketing Source" value={driver.marketing_source} />
+          <Field label="Primary Service" value={driver.primary_service} />
           <Field
-            label="Fuel Credit Available"
-            value={formatMoney(
-              (driver.credit_limit ?? 0) - (driver.fuel_balance ?? 0),
-              2
-            )}
+            label="Fuel Credit"
+            value={formatMoney(driver.weekly_fuel_limit, 2)}
           />
           <Field
-            label="Repair Balance"
-            value={formatMoney(driver.repair_balance, 2)}
+            label="Fuel Used This Cycle"
+            value={formatMoney(driver.weekly_fuel_issued, 2)}
+          />
+          <Field
+            label="Fuel Credit Left"
+            value={formatMoney(driver.weekly_fuel_available, 2)}
+          />
+          <Field
+            label="Driver Balance"
+            value={formatMoney(driver.driver_balance, 2)}
+          />
+          <Field
+            label="Next Payment Due"
+            value={
+              driver.next_payment_due
+                ? formatDateTime(driver.next_payment_due)
+                : null
+            }
+          />
+          <Field
+            label="Payment Arrangement"
+            value={
+              driver.payment_arrangement_due_date
+                ? `Due ${formatDate(driver.payment_arrangement_due_date)}${
+                    driver.payment_arrangement_notes
+                      ? ` — ${driver.payment_arrangement_notes}`
+                      : ""
+                  }`
+                : null
+            }
           />
           <Field label="Fuel Code" value={driver.fuel_code} />
           <Field label="Fuel Garage" value={driver.fuel_garage_name} />
@@ -162,13 +199,30 @@ export default async function AdminDriverProfilePage({
           <DriverForm driver={driver} isNew={false} garages={garages} vehicles={vehicles} />
         </section>
 
-        <section className="bg-white border border-grey/40 rounded-2xl p-6">
+        <Accordion
+          title="Documents"
+          badge={
+            documents.some((doc) => doc.status === "pending")
+              ? `${documents.filter((doc) => doc.status === "pending").length} pending`
+              : null
+          }
+          actions={
+            lead?.id ? (
+              <RequestDocumentsModal
+                leadId={lead.id}
+                userId={driver.user_id}
+                existingCategories={documents.map((doc) => doc.category)}
+              />
+            ) : undefined
+          }
+        >
           <DocumentsManager
             leadId={lead?.id ?? null}
             userId={driver.user_id}
             documents={documents}
+            hideHeading
           />
-        </section>
+        </Accordion>
       </div>
 
       <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">

@@ -24,8 +24,8 @@ type SortKey =
   | "full_name"
   | "phone"
   | "car_make_model"
-  | "credit_limit"
-  | "fuel_balance"
+  | "weekly_fuel_limit"
+  | "driver_balance"
   | "fuel_garage_name"
   | "fuel_code"
   | "driver_status"
@@ -200,16 +200,16 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
                     className="hidden lg:table-cell"
                   />
                   <SortableHeader
-                    label="Credit Limit"
-                    column="credit_limit"
+                    label="Fuel Credit"
+                    column="weekly_fuel_limit"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onToggle={toggleSort}
                     className="hidden lg:table-cell"
                   />
                   <SortableHeader
-                    label="Fuel Balance"
-                    column="fuel_balance"
+                    label="Balance"
+                    column="driver_balance"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onToggle={toggleSort}
@@ -268,10 +268,10 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
                       {driver.car_make_model ?? "—"}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3 text-textdark/80">
-                      {formatMoney(driver.credit_limit)}
+                      {formatMoney(driver.weekly_fuel_limit)}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3 text-textdark/80">
-                      {formatMoney(driver.fuel_balance)}
+                      {formatMoney(driver.driver_balance)}
                     </td>
                     <td className="hidden xl:table-cell px-4 py-3 text-textdark/80">
                       {driver.fuel_garage_name ?? "—"}
@@ -290,6 +290,11 @@ export function DriversTable({ drivers }: { drivers: AdminDriver[] }) {
                       {driver.suspended ? (
                         <span className="inline-block ml-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-error/10 text-error">
                           Suspended
+                        </span>
+                      ) : null}
+                      {driver.is_overdue ? (
+                        <span className="inline-block ml-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-error text-white">
+                          OVERDUE
                         </span>
                       ) : null}
                     </td>

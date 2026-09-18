@@ -41,13 +41,38 @@ export function DriverForm({
   const [carRegistration, setCarRegistration] = useState(
     driver?.car_registration ?? ""
   );
-  const [creditLimit, setCreditLimit] = useState(
-    driver?.credit_limit ?? null
+  const [weeklyFuelLimit, setWeeklyFuelLimit] = useState<number | null>(
+    driver?.weekly_fuel_limit ?? 2000
+  );
+  const [paymentDueDay, setPaymentDueDay] = useState(
+    driver?.payment_due_day ?? "tuesday"
+  );
+  const [paymentDueTime, setPaymentDueTime] = useState(
+    driver?.payment_due_time ?? "13:00"
+  );
+  const [arrangementDueDate, setArrangementDueDate] = useState(
+    driver?.payment_arrangement_due_date ?? ""
+  );
+  const [arrangementNotes, setArrangementNotes] = useState(
+    driver?.payment_arrangement_notes ?? ""
   );
   const [fuelCode, setFuelCode] = useState(driver?.fuel_code ?? "");
   const [fuelGarageId, setFuelGarageId] = useState(
     driver?.fuel_garage_id ?? ""
   );
+  const [idNumber, setIdNumber] = useState(driver?.id_number ?? "");
+  const [suburb, setSuburb] = useState(driver?.suburb ?? "");
+  const [licenseValid, setLicenseValid] = useState(driver?.license_valid ?? "");
+  const [yearsExperience, setYearsExperience] = useState(
+    driver?.years_experience ?? ""
+  );
+  const [preferredCategory, setPreferredCategory] = useState(
+    driver?.preferred_vehicle_category ?? ""
+  );
+  const [marketingSource, setMarketingSource] = useState(
+    driver?.marketing_source ?? ""
+  );
+  const isRental = driver?.primary_service === "vehicle-rental";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
@@ -61,11 +86,21 @@ export function DriverForm({
     formData.append("car_make_model", carMakeModel);
     formData.append("car_registration", carRegistration);
     formData.append(
-      "credit_limit",
-      creditLimit === null ? "" : String(creditLimit)
+      "weekly_fuel_limit",
+      weeklyFuelLimit === null ? "" : String(weeklyFuelLimit)
     );
+    formData.append("payment_due_day", paymentDueDay);
+    formData.append("payment_due_time", paymentDueTime);
+    formData.append("payment_arrangement_due_date", arrangementDueDate);
+    formData.append("payment_arrangement_notes", arrangementNotes);
     formData.append("fuel_code", fuelCode);
     formData.append("fuel_garage_id", fuelGarageId);
+    formData.append("id_number", idNumber);
+    formData.append("suburb", suburb);
+    formData.append("license_valid", licenseValid);
+    formData.append("years_experience", yearsExperience);
+    formData.append("preferred_vehicle_category", preferredCategory);
+    formData.append("marketing_source", marketingSource);
     return formData;
   }
 
@@ -226,25 +261,30 @@ export function DriverForm({
             />
           </div>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <div>
-            <label htmlFor="credit_limit" className={labelClass}>
-              Credit Limit
+            <label htmlFor="weekly_fuel_limit" className={labelClass}>
+              Fuel Credit
             </label>
             <input
-              id="credit_limit"
+              id="weekly_fuel_limit"
               type="number"
               min={0}
               step="0.01"
-              value={creditLimit ?? ""}
+              value={weeklyFuelLimit ?? ""}
               onChange={(e) =>
-                setCreditLimit(e.target.value === "" ? null : Number(e.target.value))
+                setWeeklyFuelLimit(
+                  e.target.value === "" ? null : Number(e.target.value)
+                )
               }
               className={inputClass}
             />
+            <p className="mt-1 text-xs text-textdark/50">
+              Maximum fuel spend allowed per Tue–Mon cycle. Default R2,000.
+            </p>
           </div>
           <div>
-            <label className={labelClass}>Fuel Balance</label>
+            <label className={labelClass}>Driver Balance</label>
             {!isNew && driver ? (
               <LogTransactionModal
                 driverId={driver.id}
@@ -256,55 +296,22 @@ export function DriverForm({
                 triggerClassName="w-full text-left"
                 trigger={
                   <span className="block w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80 transition-colors hover:border-orange/60 hover:bg-orange/5 cursor-pointer">
-                    {driver.fuel_balance != null
-                      ? `R${Number(driver.fuel_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : "R0.00"}
+                    R
+                    {Number(driver.driver_balance).toLocaleString("en-ZA", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                     <span className="block text-xs text-textdark/40 mt-0.5">
-                      Managed via the ledger — click to log
+                      Unified ledger — click to log a transaction
                     </span>
                   </span>
                 }
               />
             ) : (
               <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
-                {driver?.fuel_balance != null
-                  ? `R${Number(driver.fuel_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : "R0.00"}
+                R0.00
                 <span className="block text-xs text-textdark/40 mt-0.5">
-                  Managed via the ledger
-                </span>
-              </div>
-            )}
-          </div>
-          <div>
-            <label className={labelClass}>Repair Balance</label>
-            {!isNew && driver ? (
-              <LogTransactionModal
-                driverId={driver.id}
-                driverName={driver.full_name}
-                driver={driver}
-                vehicles={vehicles}
-                garages={garages}
-                defaultType="repair_issue"
-                triggerClassName="w-full text-left"
-                trigger={
-                  <span className="block w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80 transition-colors hover:border-orange/60 hover:bg-orange/5 cursor-pointer">
-                    {driver.repair_balance != null
-                      ? `R${Number(driver.repair_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : "R0.00"}
-                    <span className="block text-xs text-textdark/40 mt-0.5">
-                      Managed via the ledger — click to log
-                    </span>
-                  </span>
-                }
-              />
-            ) : (
-              <div className="w-full rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-textdark/80">
-                {driver?.repair_balance != null
-                  ? `R${Number(driver.repair_balance).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : "R0.00"}
-                <span className="block text-xs text-textdark/40 mt-0.5">
-                  Managed via the ledger
+                  Unified ledger
                 </span>
               </div>
             )}
@@ -339,6 +346,194 @@ export function DriverForm({
               </option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {isRental ? (
+        <div className="bg-white border border-grey/40 rounded-2xl p-6 space-y-5">
+          <h2 className="text-lg font-semibold text-navy">
+            Rental Application
+          </h2>
+        <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <label htmlFor="id_number" className={labelClass}>
+              ID / Passport Number
+            </label>
+            <input
+              id="id_number"
+              type="text"
+              value={idNumber}
+              onChange={(e) => setIdNumber(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. 850101 1234 089"
+            />
+          </div>
+          <div>
+            <label htmlFor="suburb" className={labelClass}>
+              Area / Suburb
+            </label>
+            <input
+              id="suburb"
+              type="text"
+              value={suburb}
+              onChange={(e) => setSuburb(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Khayelitsha"
+            />
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <label htmlFor="license_valid" className={labelClass}>
+              Valid South African License (PrDP)
+            </label>
+            <select
+              id="license_valid"
+              value={licenseValid}
+              onChange={(e) => setLicenseValid(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Select…</option>
+              {["Yes", "No", "Other"].map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="years_experience" className={labelClass}>
+              eHailing Experience
+            </label>
+            <select
+              id="years_experience"
+              value={yearsExperience}
+              onChange={(e) => setYearsExperience(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Select…</option>
+              {["1 - 3 years", "3 - 6 years", "6 years and more"].map(
+                (option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <label htmlFor="preferred_vehicle_category" className={labelClass}>
+              Preferred Vehicle / Category
+            </label>
+            <select
+              id="preferred_vehicle_category"
+              value={preferredCategory}
+              onChange={(e) => setPreferredCategory(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Select…</option>
+              {[
+                "Hatchback/ Go",
+                "Sedan/ Comfort",
+                "SUV",
+                "7 Seater or more/ XL",
+              ].map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="marketing_source" className={labelClass}>
+              How did they hear about us?
+            </label>
+            <select
+              id="marketing_source"
+              value={marketingSource}
+              onChange={(e) => setMarketingSource(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Select…</option>
+              {["eHailing Groups", "Facebook", "Fellow Driver"].map(
+                (option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      <div className="bg-white border border-grey/40 rounded-2xl p-6 space-y-5">
+        <h2 className="text-lg font-semibold text-navy">Payments &amp; Arrangements</h2>
+        <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <label htmlFor="payment_due_day" className={labelClass}>
+              Payment Due Day
+            </label>
+            <select
+              id="payment_due_day"
+              value={paymentDueDay}
+              onChange={(e) => setPaymentDueDay(e.target.value)}
+              className={inputClass}
+            >
+              {["monday", "tuesday", "wednesday", "thursday", "friday"].map(
+                (day) => (
+                  <option key={day} value={day}>
+                    {day.charAt(0).toUpperCase() + day.slice(1)}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="payment_due_time" className={labelClass}>
+              Payment Due Time
+            </label>
+            <input
+              id="payment_due_time"
+              type="time"
+              value={paymentDueTime}
+              onChange={(e) => setPaymentDueTime(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <label htmlFor="payment_arrangement_due_date" className={labelClass}>
+              Payment Arrangement Due Date
+            </label>
+            <input
+              id="payment_arrangement_due_date"
+              type="date"
+              value={arrangementDueDate}
+              onChange={(e) => setArrangementDueDate(e.target.value)}
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-textdark/50">
+              When set, this overrides the normal due date.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="payment_arrangement_notes" className={labelClass}>
+              Arrangement Notes
+            </label>
+            <textarea
+              id="payment_arrangement_notes"
+              rows={2}
+              value={arrangementNotes}
+              onChange={(e) => setArrangementNotes(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Approved payment arrangement for Wednesday."
+            />
+          </div>
         </div>
       </div>
 

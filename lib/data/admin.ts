@@ -68,9 +68,24 @@ export type AdminDriver = {
   driver_status: string;
   car_make_model: string | null;
   car_registration: string | null;
-  credit_limit: number | null;
-  fuel_balance: number | null;
-  repair_balance: number | null;
+  id_number: string | null;
+  suburb: string | null;
+  license_valid: string | null;
+  years_experience: string | null;
+  preferred_vehicle_category: string | null;
+  marketing_source: string | null;
+  primary_service: string | null;
+  driver_balance: number;
+  weekly_fuel_limit: number;
+  weekly_fuel_issued: number;
+  weekly_fuel_available: number;
+  next_payment_due: string | null;
+  is_overdue: boolean;
+  payment_due_day: string;
+  payment_due_time: string;
+  payment_arrangement_due_date: string | null;
+  payment_arrangement_notes: string | null;
+  overlimit_count: number;
   fuel_code: string | null;
   fuel_garage_id: string | null;
   fuel_garage_name: string | null;
@@ -146,8 +161,8 @@ export async function getAdminApplication(
 export async function getAdminDrivers(): Promise<AdminDriver[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("profiles")
-    .select("*, garages(name)")
+    .from("driver_account_summary")
+    .select("*")
     .neq("role", "admin")
     .order("created_at", { ascending: false });
 
@@ -158,8 +173,8 @@ export async function getAdminDrivers(): Promise<AdminDriver[]> {
 export async function getAdminDriver(id: string): Promise<AdminDriver | null> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("profiles")
-    .select("*, garages(name)")
+    .from("driver_account_summary")
+    .select("*")
     .eq("id", id)
     .maybeSingle();
 
@@ -168,7 +183,6 @@ export async function getAdminDriver(id: string): Promise<AdminDriver | null> {
 }
 
 function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
-  const garage = (row.garages as { name?: string } | null) ?? null;
   return {
     id: String(row.id),
     user_id: String(row.user_id),
@@ -178,22 +192,57 @@ function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
     suspended: Boolean(row.suspended),
     driver_status: String(row.driver_status ?? "pending"),
     car_make_model: row.car_make_model ? String(row.car_make_model) : null,
-    car_registration: row.car_registration ? String(row.car_registration) : null,
-    credit_limit:
-      row.credit_limit === null || row.credit_limit === undefined
-        ? null
-        : Number(row.credit_limit),
-    fuel_balance:
-      row.fuel_balance === null || row.fuel_balance === undefined
+    car_registration: row.car_registration
+      ? String(row.car_registration)
+      : null,
+    id_number: row.id_number ? String(row.id_number) : null,
+    suburb: row.suburb ? String(row.suburb) : null,
+    license_valid: row.license_valid ? String(row.license_valid) : null,
+    years_experience: row.years_experience
+      ? String(row.years_experience)
+      : null,
+    preferred_vehicle_category: row.preferred_vehicle_category
+      ? String(row.preferred_vehicle_category)
+      : null,
+    marketing_source: row.marketing_source
+      ? String(row.marketing_source)
+      : null,
+    primary_service: row.primary_service ? String(row.primary_service) : null,
+    driver_balance:
+      row.driver_balance === null || row.driver_balance === undefined
         ? 0
-        : Number(row.fuel_balance),
-    repair_balance:
-      row.repair_balance === null || row.repair_balance === undefined
-        ? null
-        : Number(row.repair_balance),
+        : Number(row.driver_balance),
+    weekly_fuel_limit:
+      row.weekly_fuel_limit === null || row.weekly_fuel_limit === undefined
+        ? 2000
+        : Number(row.weekly_fuel_limit),
+    weekly_fuel_issued:
+      row.weekly_fuel_issued === null || row.weekly_fuel_issued === undefined
+        ? 0
+        : Number(row.weekly_fuel_issued),
+    weekly_fuel_available:
+      row.weekly_fuel_available === null ||
+      row.weekly_fuel_available === undefined
+        ? 0
+        : Number(row.weekly_fuel_available),
+    next_payment_due: row.next_payment_due
+      ? String(row.next_payment_due)
+      : null,
+    is_overdue: Boolean(row.is_overdue),
+    payment_due_day: String(row.payment_due_day ?? "tuesday"),
+    payment_due_time: String(row.payment_due_time ?? "13:00"),
+    payment_arrangement_due_date: row.payment_arrangement_due_date
+      ? String(row.payment_arrangement_due_date)
+      : null,
+    payment_arrangement_notes: row.payment_arrangement_notes
+      ? String(row.payment_arrangement_notes)
+      : null,
+    overlimit_count: Number(row.overlimit_count ?? 0),
     fuel_code: row.fuel_code ? String(row.fuel_code) : null,
     fuel_garage_id: row.fuel_garage_id ? String(row.fuel_garage_id) : null,
-    fuel_garage_name: garage?.name ?? null,
+    fuel_garage_name: row.fuel_garage_name
+      ? String(row.fuel_garage_name)
+      : null,
     created_at: String(row.created_at ?? ""),
   };
 }
@@ -203,8 +252,8 @@ export async function getAdminDriverByUserId(
 ): Promise<AdminDriver | null> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("profiles")
-    .select("*, garages(name)")
+    .from("driver_account_summary")
+    .select("*")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -392,84 +441,73 @@ function startOfMonth(): string {
   return start.toISOString();
 }
 
-function startOfWeek(): string {
-  const now = new Date();
-  const day = (now.getDay() + 6) % 7;
-  const start = new Date(now);
-  start.setDate(now.getDate() - day);
-  start.setHours(0, 0, 0, 0);
-  return start.toISOString();
-}
-
 export async function getAdminDashboardStats(): Promise<DashboardStats> {
   const supabase = createAdminClient();
-  const weekStart = startOfWeek();
 
-  const [
-    activeDriversRes,
-    fuelIssuedWeekRes,
-    outstandingFuelRes,
-    repaymentsRes,
-    issuedRes,
-    repairBenefitsRes,
-    repairOutstandingRes,
-    vehiclesRes,
-  ] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id")
-      .eq("driver_status", "active"),
-    supabase
-      .from("transactions")
-      .select("amount, litres")
-      .eq("type", "fuel_issue")
-      .gte("created_at", weekStart),
-    supabase
-      .from("profiles")
-      .select("fuel_balance")
-      .neq("role", "admin"),
-    supabase
-      .from("transactions")
-      .select("amount")
-      .in("type", ["fuel_repayment", "repair_repayment"]),
-    supabase
-      .from("transactions")
-      .select("amount")
-      .in("type", ["fuel_issue", "repair_issue"]),
-    supabase
-      .from("profiles")
-      .select("id")
-      .gt("repair_balance", 0),
-    supabase.from("profiles").select("repair_balance"),
-    supabase
-      .from("vehicles")
-      .select("id, ownership_type")
-      .eq("status", "active"),
-  ]);
+  const [activeDriversRes, summaryRes, repaymentsRes, issuedRes, vehiclesRes] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id")
+        .eq("driver_status", "active"),
+      supabase
+        .from("driver_account_summary")
+        .select(
+          "driver_balance, weekly_fuel_issued, weekly_fuel_issued_litres, weekly_fuel_limit, is_overdue"
+        )
+        .neq("role", "admin"),
+      supabase
+        .from("transactions")
+        .select("amount")
+        .in("type", [
+          "fuel_repayment",
+          "repair_repayment",
+          "rental_repayment",
+        ]),
+      supabase
+        .from("transactions")
+        .select("amount")
+        .in("type", [
+          "fuel_issue",
+          "repair_issue",
+          "rental_fee",
+          "penalty_fee",
+        ]),
+      supabase
+        .from("vehicles")
+        .select("id, ownership_type")
+        .eq("status", "active"),
+    ]);
 
   const activeDrivers = activeDriversRes.data?.length ?? 0;
 
-  const fuelIssuedThisWeek = {
+  const rows = (summaryRes.data ?? []) as Record<string, unknown>[];
+
+  const fuelIssuedThisCycle = {
     amount: Number(
-      (fuelIssuedWeekRes.data ?? []).reduce(
-        (sum, t) => sum + Number(t.amount ?? 0),
+      rows.reduce(
+        (sum, p) => sum + Number(p.weekly_fuel_issued ?? 0),
         0
       )
     ),
     litres: Number(
-      (fuelIssuedWeekRes.data ?? []).reduce(
-        (sum, t) => sum + Number(t.litres ?? 0),
+      rows.reduce(
+        (sum, p) => sum + Number(p.weekly_fuel_issued_litres ?? 0),
         0
       )
     ),
   };
 
-  const outstandingFuelCredit = Number(
-    (outstandingFuelRes.data ?? []).reduce(
-      (sum, p) => sum + Number(p.fuel_balance ?? 0),
-      0
-    )
+  const totalOutstanding = Number(
+    rows.reduce((sum, p) => sum + Number(p.driver_balance ?? 0), 0)
   );
+
+  const overdueAccounts = rows.filter((p) => Boolean(p.is_overdue)).length;
+
+  const accountsOverLimit = rows.filter(
+    (p) =>
+      Number(p.weekly_fuel_issued ?? 0) > Number(p.weekly_fuel_limit ?? 2000)
+  ).length;
 
   const totalRepaid = Number(
     (repaymentsRes.data ?? []).reduce(
@@ -483,15 +521,6 @@ export async function getAdminDashboardStats(): Promise<DashboardStats> {
   const repaymentRate =
     totalIssued > 0 ? Math.round((totalRepaid / totalIssued) * 100) : 0;
 
-  const activeRepairBenefits = repairBenefitsRes.data?.length ?? 0;
-
-  const repairCreditOutstanding = Number(
-    (repairOutstandingRes.data ?? []).reduce(
-      (sum, p) => sum + Number(p.repair_balance ?? 0),
-      0
-    )
-  );
-
   const activeVehicles = (vehiclesRes.data ?? []) as {
     ownership_type: string | null;
   }[];
@@ -499,16 +528,16 @@ export async function getAdminDashboardStats(): Promise<DashboardStats> {
     (v) => v.ownership_type === "rental"
   ).length;
   const vehiclesUnderManagement = activeVehicles.filter(
-    (v) => v.ownership_type === "managed" || v.ownership_type === "own"
+    (v) => v.ownership_type === "managed"
   ).length;
 
   return {
     activeDrivers,
-    fuelIssuedThisWeek,
-    outstandingFuelCredit,
+    fuelIssuedThisCycle,
+    totalOutstanding,
     repaymentRate,
-    activeRepairBenefits,
-    repairCreditOutstanding,
+    overdueAccounts,
+    accountsOverLimit,
     vehiclesUnderManagement,
     rentalVehicles,
   };
@@ -520,11 +549,11 @@ export async function getAdminActiveDriversForDashboard(): Promise<
   const supabase = createAdminClient();
   const monthStart = startOfMonth();
 
-  const [profilesRes, fuelRes] = await Promise.all([
+  const [summaryRes, fuelRes] = await Promise.all([
     supabase
-      .from("profiles")
+      .from("driver_account_summary")
       .select(
-        "id, full_name, email, driver_status, fuel_balance, repair_balance, vehicles(id, make_model, registration, status)"
+        "id, full_name, email, driver_status, driver_balance, weekly_fuel_limit, weekly_fuel_issued, next_payment_due, is_overdue, vehicles(id, make_model, registration, status)"
       )
       .eq("driver_status", "active")
       .order("full_name"),
@@ -543,7 +572,7 @@ export async function getAdminActiveDriversForDashboard(): Promise<
     );
   }
 
-  return ((profilesRes.data ?? []) as Record<string, unknown>[]).map((row) => {
+  return ((summaryRes.data ?? []) as Record<string, unknown>[]).map((row) => {
     const vehicles = (row.vehicles as
       | { id: string; make_model: string; registration: string; status: string }[]
       | null) ?? [];
@@ -554,14 +583,10 @@ export async function getAdminActiveDriversForDashboard(): Promise<
       id: String(row.id),
       full_name: row.full_name ? String(row.full_name) : null,
       email: row.email ? String(row.email) : null,
-      fuel_balance:
-        row.fuel_balance === null || row.fuel_balance === undefined
+      driver_balance:
+        row.driver_balance === null || row.driver_balance === undefined
           ? 0
-          : Number(row.fuel_balance),
-      repair_balance:
-        row.repair_balance === null || row.repair_balance === undefined
-          ? null
-          : Number(row.repair_balance),
+          : Number(row.driver_balance),
       vehicle: primaryVehicle
         ? {
             id: String(primaryVehicle.id),
@@ -570,19 +595,42 @@ export async function getAdminActiveDriversForDashboard(): Promise<
           }
         : null,
       fuel_used_this_month: Number(fuelByDriver.get(String(row.id)) ?? 0),
+      weekly_fuel_limit:
+        row.weekly_fuel_limit === null || row.weekly_fuel_limit === undefined
+          ? 2000
+          : Number(row.weekly_fuel_limit),
+      weekly_fuel_issued:
+        row.weekly_fuel_issued === null || row.weekly_fuel_issued === undefined
+          ? 0
+          : Number(row.weekly_fuel_issued),
+      next_payment_due: row.next_payment_due
+        ? String(row.next_payment_due)
+        : null,
+      is_overdue: Boolean(row.is_overdue),
     };
   });
 }
 
 export async function getFuelUsageByGarage(): Promise<FuelUsageByGarage[]> {
   const supabase = createAdminClient();
-  const monthStart = startOfMonth();
+
+  const { data: bounds } = await supabase.rpc("fuel_cycle_bounds", {
+    as_of: new Date().toISOString(),
+  });
+  const cycle = (bounds ?? [])[0] as
+    | { cycle_start?: string; cycle_end?: string }
+    | undefined;
+  const cycleStart = cycle?.cycle_start;
+  const cycleEnd = cycle?.cycle_end;
+
+  if (!cycleStart || !cycleEnd) return [];
 
   const { data, error } = await supabase
     .from("transactions")
     .select("garage_id, amount, litres, garages(name)")
     .eq("type", "fuel_issue")
-    .gte("created_at", monthStart);
+    .gte("created_at", cycleStart)
+    .lt("created_at", cycleEnd);
 
   if (error) throw new Error(error.message);
 
@@ -612,22 +660,20 @@ export async function getFuelUsageByGarage(): Promise<FuelUsageByGarage[]> {
 export async function getTopDebtors(limit = 5): Promise<TopDebtor[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, fuel_balance, repair_balance")
+    .from("driver_account_summary")
+    .select("id, full_name, driver_balance")
     .neq("role", "admin");
 
   if (error) throw new Error(error.message);
 
   return ((data ?? []) as Record<string, unknown>[])
     .map((row) => {
-      const fuel = row.fuel_balance ? Number(row.fuel_balance) : 0;
-      const repair = row.repair_balance ? Number(row.repair_balance) : 0;
+      const balance = row.driver_balance ? Number(row.driver_balance) : 0;
       return {
         id: String(row.id),
         full_name: row.full_name ? String(row.full_name) : null,
-        fuel_balance: fuel,
-        repair_balance: repair,
-        total_balance: fuel + repair,
+        driver_balance: balance,
+        total_balance: balance,
       };
     })
     .filter((d) => d.total_balance > 0)

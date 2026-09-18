@@ -1,10 +1,16 @@
 import Link from "next/link";
-import { MapPin, LifeBuoy, FileText } from "lucide-react";
+import { MapPin, LifeBuoy, FileText, Car } from "lucide-react";
 import { requireClient } from "@/lib/auth";
-import { getClientLeadAndSubmissions, getClientRequiredActions } from "@/lib/data/client";
+import {
+  getClientLeadAndSubmissions,
+  getClientRequiredActions,
+  getClientBalances,
+  getClientProgrammeContext,
+} from "@/lib/data/client";
 import { getClientDocumentsContext } from "@/lib/data/documents";
 import { ClientDocumentsUpload } from "@/app/components/dashboard/ClientDocumentsUpload";
 import { RequiredActions } from "@/app/components/dashboard/RequiredActions";
+import { formatMoney } from "@/lib/utils";
 
 const statusLabels: Record<string, string> = {
   new: "New",
@@ -39,8 +45,23 @@ export default async function ClientHomePage() {
     profile.user_id
   );
   const requiredActions = await getClientRequiredActions(profile.user_id);
+  const balances = await getClientBalances(profile.user_id);
+  const programme = await getClientProgrammeContext(profile.user_id);
   const status = lead?.status ?? "new";
   const pending = submissions.find((s) => s.status === "pending" || s.status === "draft");
+
+  const isRental = programme.primary_service === "vehicle-rental";
+
+  function formatDueDate(iso: string | null): string {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString("en-ZA", {
+      weekday: "long",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
 
   return (
     <div>
@@ -91,6 +112,132 @@ export default async function ClientHomePage() {
                       : "Our team is reviewing your enquiry and will be in touch."}
             </p>
           </div>
+        )}
+      </section>
+
+      <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-navy">Your Account</h2>
+          {balances?.is_overdue ? (
+            <span className="inline-block rounded-full px-3 py-1 text-sm font-semibold bg-error text-white">
+              OVERDUE
+            </span>
+          ) : null}
+        </div>
+
+        {isRental ? (
+          <div className="mt-4">
+            {!programme.hasVehicle ? (
+              <div className="rounded-xl border-2 border-orange/40 bg-orange/5 p-6">
+                <div className="flex items-start gap-4">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange/10 text-orange">
+                    <Car size={22} />
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold text-textdark">
+                      Pending Vehicle Assignment
+                    </h3>
+                    <p className="text-textdark/70 mt-1">
+                      Your rental application has been approved and you&apos;re in
+                      the queue. We&apos;ll assign a rental vehicle to you shortly —
+                      keep an eye on your dashboard for the update.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-grey/40 bg-offwhite p-5">
+                <div className="flex items-start gap-4">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+                    <Car size={22} />
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold text-textdark">
+                      Your vehicle is ready
+                    </h3>
+                    <p className="text-textdark/70 mt-1">
+                      {programme.vehicle?.make_model ?? "Assigned vehicle"} ·{" "}
+                      {programme.vehicle?.registration ?? "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {balances ? (
+              <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-xl border border-grey/40 bg-offwhite p-4">
+                  <p className="text-xs font-medium text-textdark/50">
+                    Total Balance Owed
+                  </p>
+                  <p className="text-lg font-bold text-textdark mt-1">
+                    {formatMoney(balances.driver_balance, 2)}
+                  </p>
+                </div>
+                <div className="col-span-2 lg:col-span-4 rounded-xl border border-grey/40 bg-offwhite px-4 py-3 text-sm text-textdark/80">
+                  Next payment due:{" "}
+                  <span className="font-semibold text-textdark">
+                    {formatDueDate(balances.next_payment_due)}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-4 text-textdark/60 text-sm">
+                No account details yet.
+              </p>
+            )}
+          </div>
+        ) : balances ? (
+          <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-xl border border-grey/40 bg-offwhite p-4">
+              <p className="text-xs font-medium text-textdark/50">
+                Total Balance Owed
+              </p>
+              <p className="text-lg font-bold text-textdark mt-1">
+                {formatMoney(balances.driver_balance, 2)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-grey/40 bg-offwhite p-4">
+              <p className="text-xs font-medium text-textdark/50">
+                Fuel Credit
+              </p>
+              <p className="text-lg font-bold text-textdark mt-1">
+                {formatMoney(balances.weekly_fuel_limit, 2)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-grey/40 bg-offwhite p-4">
+              <p className="text-xs font-medium text-textdark/50">
+                Fuel Used This Cycle
+              </p>
+              <p className="text-lg font-bold text-textdark mt-1">
+                {formatMoney(balances.weekly_fuel_issued, 2)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-grey/40 bg-offwhite p-4">
+              <p className="text-xs font-medium text-textdark/50">
+                Fuel Credit Left
+              </p>
+              <p
+                className={`text-lg font-bold mt-1 ${
+                  balances.weekly_fuel_available < 0
+                    ? "text-error"
+                    : "text-textdark"
+                }`}
+              >
+                {formatMoney(balances.weekly_fuel_available, 2)}
+              </p>
+            </div>
+            <div className="col-span-2 lg:col-span-4 rounded-xl border border-grey/40 bg-offwhite px-4 py-3 text-sm text-textdark/80">
+              Next payment due:{" "}
+              <span className="font-semibold text-textdark">
+                {formatDueDate(balances.next_payment_due)}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-textdark/60 text-sm">
+            No account details yet.
+          </p>
         )}
       </section>
 
