@@ -10,7 +10,7 @@ export default async function AdminTransactionsPage() {
         Transactions
       </h1>
       <p className="text-textdark/60 mt-1">
-        The full ledger — fuel issues, repayments, rentals and corrections.
+        The full ledger — fuel purchases, repayments, rentals and corrections.
       </p>
 
       <div className="mt-8">

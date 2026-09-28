@@ -226,6 +226,39 @@ export default async function AdminDriverProfilePage({
       </div>
 
       <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
+        <h2 className="text-lg font-semibold text-navy mb-4">Linked Vehicles</h2>
+        {vehicles.length === 0 ? (
+          <p className="text-textdark/50 text-sm">
+            No vehicles linked to this driver yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-grey/20">
+            {vehicles.map((vehicle) => (
+              <li
+                key={vehicle.id}
+                className="flex items-center justify-between gap-3 py-3"
+              >
+                <div>
+                  <p className="font-medium text-textdark">
+                    {vehicle.make_model || "—"}
+                  </p>
+                  <p className="text-sm text-textdark/50">
+                    {vehicle.registration || "—"}
+                  </p>
+                </div>
+                <Link
+                  href={`/dashboard/admin/vehicles/${vehicle.id}`}
+                  className="text-sm text-navy font-semibold hover:text-orange"
+                >
+                  View vehicle &rarr;
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
         <h2 className="text-lg font-semibold text-navy mb-4">
           Recent Transactions
         </h2>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AdminDriver } from "@/lib/data/admin";
@@ -75,7 +75,14 @@ export function DriverForm({
   const isRental = driver?.primary_service === "vehicle-rental";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!success) return;
+    const timer = setTimeout(() => setSuccess(null), 4000);
+    return () => clearTimeout(timer);
+  }, [success]);
 
   function buildFormData() {
     const formData = new FormData();
@@ -125,7 +132,8 @@ export function DriverForm({
           setSubmitting(false);
           return;
         }
-        router.push(`/dashboard/admin/drivers/${driver.id}`);
+        setSubmitting(false);
+        setSuccess("Profile saved successfully.");
         router.refresh();
       }
     } catch (err) {
@@ -161,6 +169,11 @@ export function DriverForm({
 
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-6">
+      {success ? (
+        <p className="rounded-lg bg-success/10 border border-success/30 px-4 py-3 text-sm text-success">
+          {success}
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-lg bg-error/10 border border-error/30 px-4 py-3 text-sm text-error">
           {error}

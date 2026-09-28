@@ -78,7 +78,7 @@ export async function logTransaction(
       if (overrideAction !== "authorize" && overrideAction !== "unauthorized") {
         return {
           ok: false,
-          warning: `This fuel issue takes the driver's weekly usage above their R${weeklyFuelLimit.toLocaleString("en-ZA")} weekly fuel limit. Authorize the override, or process it as unauthorized to log the R100 penalty.`,
+          warning: `This fuel purchase takes the driver's weekly usage above their R${weeklyFuelLimit.toLocaleString("en-ZA")} weekly fuel limit. Authorize the override, or process it as unauthorized to log the R100 penalty.`,
           requiresConfirmation: true,
         };
       }

@@ -11,7 +11,11 @@ export async function setDriverSuspended(
 
   const { error } = await admin
     .from("profiles")
-    .update({ suspended, updated_at: new Date().toISOString() })
+    .update({
+      suspended,
+      driver_status: suspended ? "suspended" : "active",
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", profileId);
 
   if (error) {

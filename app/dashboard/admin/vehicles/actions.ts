@@ -62,6 +62,23 @@ async function notifyDriverOfVehicle(
   });
 }
 
+async function syncDriverVehicleFields(
+  admin: ReturnType<typeof createAdminClient>,
+  driverId: string | null,
+  makeModel: string | null,
+  registration: string | null
+) {
+  if (!driverId) return;
+  await admin
+    .from("profiles")
+    .update({
+      car_make_model: makeModel,
+      car_registration: registration,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", driverId);
+}
+
 export async function createVehicle(
   formData: FormData
 ): Promise<VehicleActionResult> {
@@ -86,6 +103,13 @@ export async function createVehicle(
     }
     return { ok: false, error: error.message };
   }
+
+  await syncDriverVehicleFields(
+    admin,
+    clean(formData.get("driver_id")),
+    clean(formData.get("make_model")),
+    clean(formData.get("registration"))
+  );
 
   await notifyDriverOfVehicle(
     admin,
@@ -123,14 +147,22 @@ export async function updateVehicle(
     return { ok: false, error: error.message };
   }
 
-  await notifyDriverOfVehicle(
+  const driverId = clean(formData.get("driver_id"));
+  await syncDriverVehicleFields(
     admin,
-    clean(formData.get("driver_id")),
-    clean(formData.get("make_model"))
+    driverId,
+    clean(formData.get("make_model")),
+    clean(formData.get("registration"))
   );
+
+  await notifyDriverOfVehicle(admin, driverId, clean(formData.get("make_model")));
 
   revalidatePath("/dashboard/admin/vehicles");
   revalidatePath(`/dashboard/admin/vehicles/${id}`);
+  if (driverId) {
+    revalidatePath("/dashboard/admin/drivers");
+    revalidatePath(`/dashboard/admin/drivers/${driverId}`);
+  }
   return { ok: true };
 }
 
