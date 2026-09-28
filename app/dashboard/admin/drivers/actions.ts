@@ -214,7 +214,11 @@ export async function setDriverStatus(
   const admin = createAdminClient();
   const { error } = await admin
     .from("profiles")
-    .update({ driver_status: status, updated_at: new Date().toISOString() })
+    .update({
+      driver_status: status,
+      suspended: status === "suspended",
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id);
 
   if (error) return { ok: false, error: error.message };

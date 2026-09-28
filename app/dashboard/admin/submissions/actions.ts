@@ -154,10 +154,14 @@ export async function updateSubmissionStatus(
       if (fuelCode) profilePatch.fuel_code = fuelCode;
     }
 
-    const { error: profileError } = await admin
-      .from("profiles")
-      .update(profilePatch)
-      .eq("user_id", lead.user_id);
+    const { error: profileError } = await admin.from("profiles").upsert(
+      {
+        user_id: lead.user_id,
+        role: "client",
+        ...profilePatch,
+      },
+      { onConflict: "user_id" }
+    );
 
     if (profileError) return { ok: false, error: profileError.message };
   }
@@ -215,8 +219,10 @@ export async function updateSubmissionStatus(
   }
 
   revalidatePath("/dashboard/admin/submissions");
-  revalidatePath("/dashboard/admin/submissions/${id}");
+  revalidatePath(`/dashboard/admin/submissions/${id}`);
   revalidatePath("/dashboard/admin/leads");
   revalidatePath(`/dashboard/admin/leads/${leadId}`);
+  revalidatePath("/dashboard/admin/drivers");
+  revalidatePath("/dashboard/admin");
   return { ok: true };
 }

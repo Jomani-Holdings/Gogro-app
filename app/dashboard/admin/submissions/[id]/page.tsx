@@ -4,6 +4,7 @@ import {
   getAdminSubmission,
   getAdminFormTemplate,
   getAdminLead,
+  getAdminGarageOptions,
 } from "@/lib/data/admin";
 import { getDocumentsForLead } from "@/lib/data/documents";
 import { SubmissionStatusActions } from "@/app/components/dashboard/SubmissionStatusActions";
@@ -27,16 +28,19 @@ export default async function AdminSubmissionDetailPage({
   const submission = await getAdminSubmission(id);
   if (!submission) notFound();
 
-  const [template, lead, documents] = await Promise.all([
+  const [template, lead, documents, garages] = await Promise.all([
     getAdminFormTemplate(submission.form_template_id),
     getAdminLead(submission.lead_id),
     getDocumentsForLead(submission.lead_id),
+    getAdminGarageOptions(),
   ]);
   const fields =
     template?.field_schema.filter(
       (field) => submission.data[field.key] !== undefined
     ) ?? [];
   const data = submission.data;
+
+  const garageNameById = new Map(garages.map((g) => [g.id, g.name]));
 
   const labelFor = (key: string): string => {
     const field = template?.field_schema.find((f) => f.key === key);
@@ -48,6 +52,11 @@ export default async function AdminSubmissionDetailPage({
     if (value === null || value === undefined || value === "") return "—";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (typeof value === "object") return JSON.stringify(value);
+    const field = template?.field_schema.find((f) => f.key === key);
+    if (field?.optionsSource === "garages") {
+      const name = garageNameById.get(String(value));
+      if (name) return name;
+    }
     return String(value);
   };
 
@@ -73,7 +82,11 @@ export default async function AdminSubmissionDetailPage({
           </p>
         </div>
         {keys.length > 0 && (
-          <SubmissionPdfDownload submission={submission} fields={fields} />
+          <SubmissionPdfDownload
+            submission={submission}
+            fields={fields}
+            garageNames={Object.fromEntries(garageNameById)}
+          />
         )}
       </div>
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { AdminDriver } from "@/lib/data/admin";
+import type { AdminRepairDriver } from "@/lib/data/admin";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-yellow/20 text-textdark",
@@ -24,14 +24,15 @@ type SortKey =
   | "full_name"
   | "phone"
   | "car_make_model"
-  | "weekly_fuel_limit"
+  | "total_repair_debt"
+  | "total_repair_repaid"
+  | "net_repair_position"
   | "driver_balance"
-  | "fuel_garage_name"
-  | "fuel_code"
+  | "last_repair_at"
   | "driver_status"
   | "created_at";
 
-function formatDate(iso: string): string {
+function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-ZA", {
     year: "numeric",
@@ -80,18 +81,14 @@ function SortableHeader({
   );
 }
 
-export function DriversTable({
+export function RepairDriversTable({
   drivers,
-  garages,
 }: {
-  drivers: AdminDriver[];
-  garages: { id: string; name: string }[];
+  drivers: AdminRepairDriver[];
 }) {
   const [filter, setFilter] = useState<string>("all");
-  const [suspendedOnly, setSuspendedOnly] = useState(false);
-  const [garageFilter, setGarageFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("created_at");
+  const [sortKey, setSortKey] = useState<SortKey>("net_repair_position");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   function toggleSort(key: SortKey) {
@@ -106,10 +103,7 @@ export function DriversTable({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let rows = drivers.filter((driver) => {
-      if (suspendedOnly && !driver.suspended) return false;
       if (filter !== "all" && driver.driver_status !== filter) return false;
-      if (garageFilter !== "all" && driver.fuel_garage_id !== garageFilter)
-        return false;
       if (!q) return true;
       return [
         driver.full_name,
@@ -118,7 +112,6 @@ export function DriversTable({
         driver.fuel_code,
         driver.car_make_model,
         driver.car_registration,
-        driver.fuel_garage_name,
       ].some((value) => value?.toLowerCase().includes(q));
     });
 
@@ -135,7 +128,7 @@ export function DriversTable({
     });
 
     return rows;
-  }, [drivers, filter, query, sortKey, sortDir, suspendedOnly, garageFilter]);
+  }, [drivers, filter, query, sortKey, sortDir]);
 
   return (
     <div>
@@ -155,29 +148,6 @@ export function DriversTable({
               {value === "all" ? "All" : statusLabels[value]}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setSuspendedOnly((prev) => !prev)}
-            className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-              suspendedOnly
-                ? "bg-error text-white border-error"
-                : "bg-white text-textdark border-grey/40 hover:border-error"
-            }`}
-          >
-            Suspended only
-          </button>
-          <select
-            value={garageFilter}
-            onChange={(e) => setGarageFilter(e.target.value)}
-            className="px-4 py-2 rounded-full text-sm font-medium border border-grey/40 bg-white text-textdark focus:outline-none focus:ring-2 focus:ring-orange/60"
-          >
-            <option value="all">All garages</option>
-            {garages.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
         </div>
         <input
           type="search"
@@ -222,15 +192,30 @@ export function DriversTable({
                     className="hidden lg:table-cell"
                   />
                   <SortableHeader
-                    label="Fuel Credit"
-                    column="weekly_fuel_limit"
+                    label="Total Repair Debt"
+                    column="total_repair_debt"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onToggle={toggleSort}
                     className="hidden lg:table-cell"
                   />
                   <SortableHeader
-                    label="Balance"
+                    label="Total Repaid"
+                    column="total_repair_repaid"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                    className="hidden xl:table-cell"
+                  />
+                  <SortableHeader
+                    label="Net Repair Position"
+                    column="net_repair_position"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                  />
+                  <SortableHeader
+                    label="Total Account Balance"
                     column="driver_balance"
                     sortKey={sortKey}
                     sortDir={sortDir}
@@ -238,20 +223,12 @@ export function DriversTable({
                     className="hidden lg:table-cell"
                   />
                   <SortableHeader
-                    label="Garage"
-                    column="fuel_garage_name"
+                    label="Last Repair"
+                    column="last_repair_at"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onToggle={toggleSort}
-                    className="hidden xl:table-cell"
-                  />
-                  <SortableHeader
-                    label="Fuel Code"
-                    column="fuel_code"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden md:table-cell"
+                    className="hidden sm:table-cell"
                   />
                   <SortableHeader
                     label="Status"
@@ -259,14 +236,6 @@ export function DriversTable({
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onToggle={toggleSort}
-                  />
-                  <SortableHeader
-                    label="Created"
-                    column="created_at"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden sm:table-cell"
                   />
                   <th className="px-4 py-3 font-medium text-right">Action</th>
                 </tr>
@@ -290,16 +259,27 @@ export function DriversTable({
                       {driver.car_make_model ?? "—"}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3 text-textdark/80">
-                      {formatMoney(driver.weekly_fuel_limit)}
+                      {formatMoney(driver.total_repair_debt)}
+                    </td>
+                    <td className="hidden xl:table-cell px-4 py-3 text-textdark/80">
+                      {formatMoney(driver.total_repair_repaid)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`font-semibold ${
+                          driver.net_repair_position > 0
+                            ? "text-error"
+                            : "text-success"
+                        }`}
+                      >
+                        {formatMoney(driver.net_repair_position)}
+                      </span>
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3 text-textdark/80">
                       {formatMoney(driver.driver_balance)}
                     </td>
-                    <td className="hidden xl:table-cell px-4 py-3 text-textdark/80">
-                      {driver.fuel_garage_name ?? "—"}
-                    </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-textdark/80">
-                      {driver.fuel_code ?? "—"}
+                    <td className="hidden sm:table-cell px-4 py-3 text-textdark/60">
+                      {formatDate(driver.last_repair_at)}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -319,9 +299,6 @@ export function DriversTable({
                           OVERDUE
                         </span>
                       ) : null}
-                    </td>
-                    <td className="hidden sm:table-cell px-4 py-3 text-textdark/60">
-                      {formatDate(driver.created_at)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link

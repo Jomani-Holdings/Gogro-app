@@ -69,9 +69,11 @@ const styles = StyleSheet.create({
 export function SubmissionPdfDocument({
   submission,
   fields,
+  garageNames,
 }: {
   submission: FormSubmission;
   fields: FormField[];
+  garageNames?: Record<string, string>;
 }) {
   function labelFor(key: string): string {
     const field = fields.find((f) => f.key === key);
@@ -83,6 +85,11 @@ export function SubmissionPdfDocument({
     if (value === null || value === undefined || value === "") return "—";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (typeof value === "object") return JSON.stringify(value);
+    const field = fields.find((f) => f.key === key);
+    if (field?.optionsSource === "garages") {
+      const name = garageNames?.[String(value)];
+      if (name) return name;
+    }
     return String(value);
   }
 
