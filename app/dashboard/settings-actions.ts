@@ -16,6 +16,12 @@ export type SettingsResult = {
 
 const AVATAR_TYPES = ["image/jpeg", "image/png"];
 
+// Storage paths are relative to the avatars bucket. Older rows may still carry
+// the bucket name as a prefix, so normalise on the way out.
+function avatarObjectPath(stored: string): string {
+  return stored.replace(/^avatars\//, "");
+}
+
 export async function updateAvatar(formData: FormData): Promise<SettingsResult> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -42,12 +48,12 @@ export async function updateAvatar(formData: FormData): Promise<SettingsResult> 
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const storagePath = `${AVATARS_BUCKET}/${user.id}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
+  const storagePath = `${user.id}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
   const bytes = Buffer.from(await file.arrayBuffer());
 
   const { error: uploadError } = await admin.storage
     .from(AVATARS_BUCKET)
-    .upload(storagePath.replace(`${AVATARS_BUCKET}/`, ""), bytes, {
+    .upload(storagePath, bytes, {
       contentType: file.type,
       cacheControl: "3600",
       upsert: false,
@@ -62,14 +68,14 @@ export async function updateAvatar(formData: FormData): Promise<SettingsResult> 
     })
     .eq("user_id", user.id);
   if (error) {
-    await admin.storage.from(AVATARS_BUCKET).remove([storagePath.replace(`${AVATARS_BUCKET}/`, "")]);
+    await admin.storage.from(AVATARS_BUCKET).remove([storagePath]);
     return { ok: false, message: error.message };
   }
 
   if (profile?.avatar_url) {
     await admin.storage
       .from(AVATARS_BUCKET)
-      .remove([String(profile.avatar_url).replace(`${AVATARS_BUCKET}/`, "")]);
+      .remove([avatarObjectPath(String(profile.avatar_url))]);
   }
 
   revalidatePath("/dashboard/settings");
@@ -96,7 +102,7 @@ export async function deleteAvatar(): Promise<SettingsResult> {
   if (profile?.avatar_url) {
     await admin.storage
       .from(AVATARS_BUCKET)
-      .remove([String(profile.avatar_url).replace(`${AVATARS_BUCKET}/`, "")]);
+      .remove([avatarObjectPath(String(profile.avatar_url))]);
   }
 
   const { error } = await admin

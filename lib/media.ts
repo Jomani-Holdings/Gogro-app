@@ -18,7 +18,7 @@ export function documentUrl(storagePath: string): string {
 }
 
 export function avatarUrl(storagePath: string): string {
-  return `/api/avatars/${storagePath}`;
+  return `/api/avatars/${storagePath.replace(/^avatars\//, "")}`;
 }
 
 export function slugifyFilename(filename: string): string {
