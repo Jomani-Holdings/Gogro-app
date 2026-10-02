@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, CheckCircle2, Search, ChevronDown } from "lucide-react";
 import { logTransaction } from "@/app/dashboard/admin/transactions/actions";
 import type { TransactionType } from "@/lib/data/types";
-import type { AdminDriverSearchOption } from "@/lib/data/admin";
+import type { AdminDriverSearchOption, AdminGarageOption } from "@/lib/data/admin";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -20,7 +20,7 @@ export function LogRepairModal({
 }: {
   drivers: AdminDriverSearchOption[];
   vehicles: { id: string; make_model: string; registration: string }[];
-  garages: { id: string; name: string }[];
+  garages: AdminGarageOption[];
   triggerLabel?: string;
   triggerClassName?: string;
 }) {
@@ -49,6 +49,11 @@ export function LogRepairModal({
     );
   }, [drivers, query]);
 
+  const repairGarages = useMemo(
+    () => garages.filter((g) => g.partner_type_slug === "service"),
+    [garages]
+  );
+
   useEffect(() => {
     if (!open) return;
     function onClickOutside(e: MouseEvent) {
@@ -65,7 +70,7 @@ export function LogRepairModal({
     setSelected(null);
     setType("repair_issue");
     setAmount("");
-    setVehicleId(vehicles[0]?.id ?? "");
+    setVehicleId("");
     setGarageId("");
     setCreatedAt("");
     setError(null);
@@ -79,6 +84,15 @@ export function LogRepairModal({
     setQuery("");
     setListOpen(false);
     setError(null);
+    if (driver.car_registration) {
+      const registration = driver.car_registration.toLowerCase();
+      const match = vehicles.find(
+        (vehicle) => vehicle.registration.toLowerCase() === registration
+      );
+      setVehicleId(match?.id ?? "");
+    } else {
+      setVehicleId("");
+    }
   }
 
   function clearDriver() {
@@ -346,7 +360,7 @@ export function LogRepairModal({
                   disabled={pending || success}
                 >
                   <option value="">None</option>
-                  {garages.map((garage) => (
+                  {repairGarages.map((garage) => (
                     <option key={garage.id} value={garage.id}>
                       {garage.name}
                     </option>

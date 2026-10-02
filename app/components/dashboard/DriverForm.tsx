@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { AdminDriver } from "@/lib/data/admin";
+import type { AdminDriver, AdminGarageOption } from "@/lib/data/admin";
 import {
   createDriver,
   updateDriver,
@@ -29,7 +29,7 @@ export function DriverForm({
 }: {
   driver: AdminDriver | null;
   isNew: boolean;
-  garages: { id: string; name: string }[];
+  garages: AdminGarageOption[];
   vehicles?: { id: string; make_model: string; registration: string }[];
 }) {
   const router = useRouter();
@@ -73,6 +73,7 @@ export function DriverForm({
     driver?.marketing_source ?? ""
   );
   const isRental = driver?.primary_service === "vehicle-rental";
+  const fuelGarages = garages.filter((g) => g.partner_type_slug === "fuel");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -353,7 +354,7 @@ export function DriverForm({
             className={inputClass}
           >
             <option value="">None</option>
-            {garages.map((garage) => (
+            {fuelGarages.map((garage) => (
               <option key={garage.id} value={garage.id}>
                 {garage.name}
               </option>

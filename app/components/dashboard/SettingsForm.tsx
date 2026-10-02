@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateProfile, updatePassword } from "@/app/dashboard/settings-actions";
+import { AvatarEditor } from "@/app/components/dashboard/AvatarEditor";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -12,10 +13,12 @@ export function SettingsForm({
   fullName,
   phone,
   email,
+  avatarUrl,
 }: {
   fullName: string | null;
   phone: string | null;
   email: string | null;
+  avatarUrl: string | null;
 }) {
   const router = useRouter();
   const [profileBusy, setProfileBusy] = useState(false);
@@ -60,6 +63,20 @@ export function SettingsForm({
         className="bg-white border border-grey/40 rounded-2xl p-6 space-y-5"
       >
         <h2 className="text-lg font-semibold text-navy">Profile</h2>
+
+        <div className="flex items-center gap-5">
+          <AvatarEditor
+            avatarStoragePath={avatarUrl}
+            fullName={fullName}
+            size="lg"
+          />
+          <div>
+            <p className="font-semibold text-textdark">Profile photo</p>
+            <p className="text-sm text-textdark/60">
+              Click the pencil to edit or delete your photo.
+            </p>
+          </div>
+        </div>
 
         {status ? (
           <p

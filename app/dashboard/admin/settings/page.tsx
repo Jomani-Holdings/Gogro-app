@@ -16,6 +16,7 @@ export default async function AdminSettingsPage() {
           fullName={profile.full_name}
           phone={profile.phone}
           email={profile.email}
+          avatarUrl={profile.avatar_url}
         />
       </div>
     </div>

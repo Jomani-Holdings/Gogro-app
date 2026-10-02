@@ -309,7 +309,7 @@ export function DriversTable({
                       >
                         {statusLabels[driver.driver_status] ?? "Pending"}
                       </span>
-                      {driver.suspended ? (
+                      {driver.suspended && driver.driver_status !== "suspended" ? (
                         <span className="inline-block ml-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-error/10 text-error">
                           Suspended
                         </span>

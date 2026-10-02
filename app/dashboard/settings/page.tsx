@@ -23,6 +23,7 @@ export default async function SettingsPage() {
           fullName={profile?.full_name ?? null}
           phone={profile?.phone ?? null}
           email={user.email ?? null}
+          avatarUrl={profile?.avatar_url ?? null}
         />
       </div>
     </div>

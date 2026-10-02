@@ -7,5 +7,5 @@ export default async function ClientLayout({
   children: ReactNode;
 }) {
   await requireClient();
-  return <div className="max-w-3xl mx-auto w-full">{children}</div>;
+  return children;
 }

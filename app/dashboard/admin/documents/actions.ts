@@ -70,7 +70,7 @@ export async function requestDocuments(
   await notifyUser(userId, {
     title: "Documents requested",
     body: "We need a few documents from you before we can continue.",
-    link: "/dashboard/client#documents",
+    link: "/dashboard/client/documents",
     type: "document",
   });
 
@@ -90,7 +90,7 @@ export async function requestDocuments(
         )
         .join(", ");
       const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
-      const dashboardLink = `${baseUrl}/dashboard/client#documents`;
+      const dashboardLink = `${baseUrl}/dashboard/client/documents`;
       const resend = new Resend(apiKey);
       const template = await getTemplateBySlug(admin, "documents_requested_client");
       const variables: EmailVariables = {

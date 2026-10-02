@@ -275,20 +275,30 @@ export async function getAdminLeadByUserId(
   return mapLead(data as Record<string, unknown>);
 }
 
-export async function getAdminGarageOptions(): Promise<
-  { id: string; name: string }[]
-> {
+export type AdminGarageOption = {
+  id: string;
+  name: string;
+  partner_type_id: string | null;
+  partner_type_slug: string | null;
+};
+
+export async function getAdminGarageOptions(): Promise<AdminGarageOption[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("garages")
-    .select("id, name")
+    .select("id, name, partner_type_id, partner_types(slug)")
     .order("name");
 
   if (error) throw new Error(error.message);
-  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
-    id: String(row.id),
-    name: String(row.name),
-  }));
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => {
+    const partner = (row.partner_types as { slug?: string } | null) ?? null;
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      partner_type_id: row.partner_type_id ? String(row.partner_type_id) : null,
+      partner_type_slug: partner?.slug ?? null,
+    };
+  });
 }
 
 export async function getAdminServices(): Promise<Service[]> {
