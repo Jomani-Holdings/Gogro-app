@@ -31,8 +31,19 @@ export function ClientDocumentsUpload({
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const requestedCategories = new Set(
+    documents
+      .filter((doc) => doc.storage_path === "" && doc.status === "pending")
+      .map((doc) => doc.category)
+  );
+  documents
+    .filter((doc) => doc.storage_path !== "")
+    .forEach((doc) => requestedCategories.delete(doc.category));
+
   function docsFor(category: string) {
-    return documents.filter((doc) => doc.category === category);
+    return documents.filter(
+      (doc) => doc.category === category && doc.storage_path !== ""
+    );
   }
 
   function handleFile(category: string, file: File | undefined) {
@@ -91,6 +102,18 @@ export function ClientDocumentsUpload({
         </div>
       ) : null}
 
+      {requestedCategories.size > 0 ? (
+        <div className="mb-6 rounded-2xl border border-orange/40 bg-orange/5 p-6">
+          <h3 className="font-bold text-orange">Documents requested</h3>
+          <p className="text-sm text-textdark/70 mt-1">
+            Our team is waiting on {requestedCategories.size} document
+            {requestedCategories.size === 1 ? "" : "s"}. The highlighted
+            sections below show what is needed — please upload them so we can
+            review.
+          </p>
+        </div>
+      ) : null}
+
       {error ? (
         <p className="mb-4 rounded-lg bg-error/10 border border-error/30 px-4 py-3 text-sm text-error">
           {error}
@@ -100,16 +123,28 @@ export function ClientDocumentsUpload({
       <div className="flex flex-col gap-3">
         {DOCUMENT_CATEGORIES.map((category) => {
           const uploaded = docsFor(category.value);
+          const isRequested = requestedCategories.has(category.value);
           return (
             <div
               key={category.value}
-              className="rounded-xl border border-grey/40 p-4"
+              className={`rounded-xl border p-4 ${
+                isRequested
+                  ? "border-orange/60 bg-orange/5"
+                  : "border-grey/40"
+              }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-textdark">
-                    {category.label}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-textdark">
+                      {category.label}
+                    </p>
+                    {isRequested ? (
+                      <span className="inline-block rounded-full bg-orange px-2.5 py-0.5 text-xs font-semibold text-white">
+                        Requested
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-sm text-textdark/60">
                     {category.description}
                   </p>

@@ -1,5 +1,11 @@
 import { MessageCircle, AlertTriangle, CarFront, Headphones } from "lucide-react";
 import { getWhatsAppLink, siteConfig } from "@/app/lib/site-config";
+import { requireClient } from "@/lib/auth";
+import {
+  getClientAccountProfile,
+  getClientProgrammeContext,
+} from "@/lib/data/client";
+import { SupportQueryForm } from "@/app/components/dashboard/SupportQueryForm";
 
 const actions = [
   {
@@ -40,7 +46,15 @@ const actions = [
   },
 ];
 
-export default function DriverSupportPage() {
+export default async function DriverSupportPage() {
+  const profile = await requireClient();
+  const [accountProfile, programme] = await Promise.all([
+    getClientAccountProfile(profile.user_id),
+    getClientProgrammeContext(profile.user_id),
+  ]);
+
+  const isRental = programme.primary_service === "vehicle-rental";
+
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-bold text-textdark">Support</h1>
@@ -82,6 +96,18 @@ export default function DriverSupportPage() {
           );
         })}
       </div>
+
+      <SupportQueryForm
+        fullName={profile.full_name}
+        phone={profile.phone}
+        email={profile.email}
+        fuelCode={accountProfile?.fuel_code ?? null}
+        carMakeModel={accountProfile?.car_make_model ?? null}
+        carRegistration={accountProfile?.car_registration ?? null}
+        isRental={isRental}
+        rentalVehicle={programme.vehicle}
+        whatsappNumber={siteConfig.whatsapp.number}
+      />
     </div>
   );
 }

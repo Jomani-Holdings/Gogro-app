@@ -8,7 +8,11 @@ import {
   TRANSACTION_TYPES,
   type TransactionType,
 } from "@/lib/data/types";
+import type { AdminGarageOption } from "@/lib/data/admin";
 import { formatMoney } from "@/lib/utils";
+
+const FUEL_TYPES: TransactionType[] = ["fuel_issue", "fuel_repayment"];
+const REPAIR_TYPES: TransactionType[] = ["repair_issue", "repair_repayment"];
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -45,7 +49,7 @@ export function LogTransactionModal({
   driverName: string | null;
   driver?: LogTransactionDriverInfo | null;
   vehicles: { id: string; make_model: string; registration: string }[];
-  garages: { id: string; name: string }[];
+  garages: AdminGarageOption[];
   defaultType?: TransactionType;
   triggerLabel?: string;
   triggerClassName?: string;
@@ -66,12 +70,42 @@ export function LogTransactionModal({
 
   const currentType = TRANSACTION_TYPES.find((t) => t.value === type);
 
+  function garagesForType(
+    selectedType: TransactionType,
+    all: AdminGarageOption[]
+  ): AdminGarageOption[] {
+    if (FUEL_TYPES.includes(selectedType)) {
+      return all.filter((g) => g.partner_type_slug === "fuel");
+    }
+    if (REPAIR_TYPES.includes(selectedType)) {
+      return all.filter((g) => g.partner_type_slug === "service");
+    }
+    return all;
+  }
+
+  function defaultGarageForType(selectedType: TransactionType): string {
+    return FUEL_TYPES.includes(selectedType)
+      ? (driver?.fuel_garage_id ?? "")
+      : "";
+  }
+
+  function handleTypeChange(nextType: TransactionType) {
+    setType(nextType);
+    setError(null);
+    const filtered = garagesForType(nextType, garages);
+    const stillValid =
+      garageId && filtered.some((g) => g.id === garageId);
+    if (!stillValid) {
+      setGarageId(defaultGarageForType(nextType));
+    }
+  }
+
   function openModal() {
     setType(defaultType);
     setAmount("");
     setLitres("");
     setVehicleId(vehicles[0]?.id ?? "");
-    setGarageId(driver?.fuel_garage_id ?? "");
+    setGarageId(defaultGarageForType(defaultType));
     setCreatedAt("");
     setError(null);
     setWarning(null);
@@ -290,7 +324,9 @@ export function LogTransactionModal({
                 <select
                   id="transaction_type"
                   value={type}
-                  onChange={(e) => setType(e.target.value as TransactionType)}
+                  onChange={(e) =>
+                    handleTypeChange(e.target.value as TransactionType)
+                  }
                   className={inputClass}
                 >
                   {TRANSACTION_TYPES.map((t) => (
@@ -378,7 +414,7 @@ export function LogTransactionModal({
                   className={inputClass}
                 >
                   <option value="">None</option>
-                  {garages.map((garage) => (
+                  {garagesForType(type, garages).map((garage) => (
                     <option key={garage.id} value={garage.id}>
                       {garage.name}
                     </option>
