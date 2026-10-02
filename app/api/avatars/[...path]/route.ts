@@ -13,12 +13,12 @@ export async function GET(
   const segments = Array.isArray(path) ? path : [path];
   const key = segments.join("/");
 
-  if (!key || !key.startsWith(`${AVATARS_BUCKET}/`)) {
+  if (!key) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  // Avatars are stored under avatars/<user_id>/<filename>.
-  const ownerId = segments[1];
+  // Avatars are stored under <user_id>/<filename> in the avatars bucket.
+  const ownerId = segments[0];
   if (!ownerId) return new NextResponse("Not found", { status: 404 });
 
   const supabase = await createClient();
