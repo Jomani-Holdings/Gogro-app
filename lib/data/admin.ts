@@ -275,20 +275,30 @@ export async function getAdminLeadByUserId(
   return mapLead(data as Record<string, unknown>);
 }
 
-export async function getAdminGarageOptions(): Promise<
-  { id: string; name: string }[]
-> {
+export type AdminGarageOption = {
+  id: string;
+  name: string;
+  partner_type_id: string | null;
+  partner_type_slug: string | null;
+};
+
+export async function getAdminGarageOptions(): Promise<AdminGarageOption[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("garages")
-    .select("id, name")
+    .select("id, name, partner_type_id, partner_types(slug)")
     .order("name");
 
   if (error) throw new Error(error.message);
-  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
-    id: String(row.id),
-    name: String(row.name),
-  }));
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => {
+    const partner = (row.partner_types as { slug?: string } | null) ?? null;
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      partner_type_id: row.partner_type_id ? String(row.partner_type_id) : null,
+      partner_type_slug: partner?.slug ?? null,
+    };
+  });
 }
 
 export async function getAdminServices(): Promise<Service[]> {
@@ -712,6 +722,100 @@ export async function getDriverTransactions(
 
   if (error) throw new Error(error.message);
   return ((data ?? []) as Record<string, unknown>[]).map(mapTransaction);
+}
+
+export type AdminRepairDriver = AdminDriver & {
+  total_repair_debt: number;
+  total_repair_repaid: number;
+  net_repair_position: number;
+  last_repair_at: string | null;
+};
+
+export async function getAdminRepairDrivers(): Promise<AdminRepairDriver[]> {
+  const supabase = createAdminClient();
+
+  const [driversRes, repairsRes] = await Promise.all([
+    supabase
+      .from("driver_account_summary")
+      .select("*")
+      .neq("role", "admin")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("transactions")
+      .select("driver_id, type, amount, created_at")
+      .in("type", ["repair_issue", "repair_repayment"]),
+  ]);
+
+  if (driversRes.error) throw new Error(driversRes.error.message);
+  if (repairsRes.error) throw new Error(repairsRes.error.message);
+
+  const stats = new Map<
+    string,
+    { debt: number; repaid: number; last: string | null }
+  >();
+  for (const t of (repairsRes.data ?? []) as Record<string, unknown>[]) {
+    const driverId = String(t.driver_id);
+    const amount = Number(t.amount ?? 0);
+    const entry = stats.get(driverId) ?? {
+      debt: 0,
+      repaid: 0,
+      last: null,
+    };
+    if (t.type === "repair_issue") entry.debt += amount;
+    if (t.type === "repair_repayment") entry.repaid += amount;
+    const createdAt = t.created_at ? String(t.created_at) : null;
+    if (createdAt && (!entry.last || createdAt > entry.last)) entry.last = createdAt;
+    stats.set(driverId, entry);
+  }
+
+  return ((driversRes.data ?? []) as Record<string, unknown>[])
+    .map((row) => {
+      const driver = mapAdminDriver(row);
+      const s = stats.get(driver.id);
+      if (!s || s.debt <= 0) return null;
+      return {
+        ...driver,
+        total_repair_debt: s.debt,
+        total_repair_repaid: s.repaid,
+        net_repair_position: s.debt - s.repaid,
+        last_repair_at: s.last,
+      };
+    })
+    .filter((d): d is AdminRepairDriver => d !== null);
+}
+
+export type AdminDriverSearchOption = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  email: string | null;
+  car_registration: string | null;
+  fuel_code: string | null;
+};
+
+export async function getAdminDriverSearchOptions(): Promise<
+  AdminDriverSearchOption[]
+> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      "id, full_name, phone, email, car_registration, fuel_code"
+    )
+    .neq("role", "admin")
+    .order("full_name");
+
+  if (error) throw new Error(error.message);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+    id: String(row.id),
+    full_name: row.full_name ? String(row.full_name) : null,
+    phone: row.phone ? String(row.phone) : null,
+    email: row.email ? String(row.email) : null,
+    car_registration: row.car_registration
+      ? String(row.car_registration)
+      : null,
+    fuel_code: row.fuel_code ? String(row.fuel_code) : null,
+  }));
 }
 
 export type AdminTransaction = Transaction & {

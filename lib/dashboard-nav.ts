@@ -13,6 +13,7 @@ export type NavGroup = {
 export const adminNav: NavItem[] = [
   { href: "/dashboard/admin", label: "Overview", icon: "LayoutDashboard" },
   { href: "/dashboard/admin/drivers", label: "Drivers", icon: "Users" },
+  { href: "/dashboard/admin/repairs", label: "Repairs", icon: "Wrench" },
   { href: "/dashboard/admin/vehicles", label: "Vehicles", icon: "Car" },
   { href: "/dashboard/admin/leads", label: "Leads", icon: "FileText" },
   { href: "/dashboard/admin/submissions", label: "Submissions", icon: "ClipboardList" },
@@ -35,8 +36,8 @@ export const adminSiteGroup: NavGroup = {
 };
 
 export const clientNav: NavItem[] = [
-  { href: "/dashboard/client", label: "Home", icon: "Home" },
-  { href: "/dashboard/client/garages", label: "Garages", icon: "MapPin" },
-  { href: "/dashboard/client/support", label: "Support", icon: "LifeBuoy" },
-  { href: "/dashboard/settings", label: "Settings", icon: "Settings" },
+  { href: "/dashboard/client", label: "Dashboard", icon: "LayoutDashboard" },
+  { href: "/dashboard/client/finances", label: "My Finances", icon: "Receipt" },
+  { href: "/dashboard/client/documents", label: "My Documents", icon: "FileText" },
+  { href: "/dashboard/client/support", label: "Support Center", icon: "LifeBuoy" },
 ];

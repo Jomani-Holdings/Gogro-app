@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { AdminDriver } from "@/lib/data/admin";
+import type { AdminDriver, AdminGarageOption } from "@/lib/data/admin";
 import {
   createDriver,
   updateDriver,
@@ -29,7 +29,7 @@ export function DriverForm({
 }: {
   driver: AdminDriver | null;
   isNew: boolean;
-  garages: { id: string; name: string }[];
+  garages: AdminGarageOption[];
   vehicles?: { id: string; make_model: string; registration: string }[];
 }) {
   const router = useRouter();
@@ -73,9 +73,17 @@ export function DriverForm({
     driver?.marketing_source ?? ""
   );
   const isRental = driver?.primary_service === "vehicle-rental";
+  const fuelGarages = garages.filter((g) => g.partner_type_slug === "fuel");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!success) return;
+    const timer = setTimeout(() => setSuccess(null), 4000);
+    return () => clearTimeout(timer);
+  }, [success]);
 
   function buildFormData() {
     const formData = new FormData();
@@ -125,7 +133,8 @@ export function DriverForm({
           setSubmitting(false);
           return;
         }
-        router.push(`/dashboard/admin/drivers/${driver.id}`);
+        setSubmitting(false);
+        setSuccess("Profile saved successfully.");
         router.refresh();
       }
     } catch (err) {
@@ -161,6 +170,11 @@ export function DriverForm({
 
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-6">
+      {success ? (
+        <p className="rounded-lg bg-success/10 border border-success/30 px-4 py-3 text-sm text-success">
+          {success}
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-lg bg-error/10 border border-error/30 px-4 py-3 text-sm text-error">
           {error}
@@ -340,7 +354,7 @@ export function DriverForm({
             className={inputClass}
           >
             <option value="">None</option>
-            {garages.map((garage) => (
+            {fuelGarages.map((garage) => (
               <option key={garage.id} value={garage.id}>
                 {garage.name}
               </option>

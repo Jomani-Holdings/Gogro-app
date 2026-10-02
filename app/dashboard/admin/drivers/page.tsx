@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { getAdminDrivers } from "@/lib/data/admin";
+import { getAdminDrivers, getAdminGarageOptions } from "@/lib/data/admin";
 import { DriversTable } from "@/app/components/dashboard/DriversTable";
 
 export default async function AdminDriversPage() {
-  const drivers = await getAdminDrivers();
+  const [drivers, garages] = await Promise.all([
+    getAdminDrivers(),
+    getAdminGarageOptions(),
+  ]);
 
   return (
     <div>
@@ -25,7 +28,7 @@ export default async function AdminDriversPage() {
       </div>
 
       <div className="mt-8">
-        <DriversTable drivers={drivers} />
+        <DriversTable drivers={drivers} garages={garages} />
       </div>
     </div>
   );

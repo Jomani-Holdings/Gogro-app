@@ -72,8 +72,8 @@ export const TRANSACTION_TYPES: {
   label: string;
   affectsLitres: boolean;
 }[] = [
-  { value: "fuel_issue", label: "Fuel Issue", affectsLitres: true },
-  { value: "repair_issue", label: "Repair Issue", affectsLitres: false },
+  { value: "fuel_issue", label: "Fuel Purchase", affectsLitres: true },
+  { value: "repair_issue", label: "Repair Purchase", affectsLitres: false },
   { value: "rental_fee", label: "Rental Fee", affectsLitres: false },
   { value: "penalty_fee", label: "Penalty Fee", affectsLitres: false },
   { value: "fuel_repayment", label: "Fuel Repayment", affectsLitres: false },
@@ -85,8 +85,8 @@ export const TRANSACTION_TYPES: {
 ];
 
 export const TRANSACTION_LABELS: Record<TransactionType, string> = {
-  fuel_issue: "Fuel Issue",
-  repair_issue: "Repair Issue",
+  fuel_issue: "Fuel Purchase",
+  repair_issue: "Repair Purchase",
   rental_fee: "Rental Fee",
   penalty_fee: "Penalty Fee",
   fuel_repayment: "Fuel Repayment",

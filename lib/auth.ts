@@ -9,6 +9,7 @@ export type Profile = {
   full_name: string | null;
   email: string | null;
   phone: string | null;
+  avatar_url: string | null;
   suspended: boolean;
 };
 
@@ -31,7 +32,9 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, user_id, role, full_name, email, phone, suspended")
+    .select(
+      "id, user_id, role, full_name, email, phone, avatar_url, suspended"
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
