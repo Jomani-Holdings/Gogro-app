@@ -152,6 +152,22 @@ export default async function AdminDriverProfilePage({
             value={formatMoney(driver.driver_balance, 2)}
           />
           <Field
+            label="Fuel Balance"
+            value={formatMoney(driver.fuel_balance, 2)}
+          />
+          <Field
+            label="Repair Balance"
+            value={formatMoney(driver.repair_balance, 2)}
+          />
+          <Field
+            label="Rental Balance"
+            value={formatMoney(driver.rental_balance, 2)}
+          />
+          <Field
+            label="Penalty Balance"
+            value={formatMoney(driver.penalty_balance, 2)}
+          />
+          <Field
             label="Next Payment Due"
             value={
               driver.next_payment_due

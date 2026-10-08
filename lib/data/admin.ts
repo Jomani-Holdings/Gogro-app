@@ -77,6 +77,9 @@ export type AdminDriver = {
   primary_service: string | null;
   driver_balance: number;
   fuel_balance: number;
+  repair_balance: number;
+  rental_balance: number;
+  penalty_balance: number;
   weekly_fuel_limit: number;
   weekly_fuel_issued: number;
   weekly_fuel_available: number;
@@ -217,6 +220,18 @@ function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
       row.fuel_balance === null || row.fuel_balance === undefined
         ? 0
         : Number(row.fuel_balance),
+    repair_balance:
+      row.repair_balance === null || row.repair_balance === undefined
+        ? 0
+        : Number(row.repair_balance),
+    rental_balance:
+      row.rental_balance === null || row.rental_balance === undefined
+        ? 0
+        : Number(row.rental_balance),
+    penalty_balance:
+      row.penalty_balance === null || row.penalty_balance === undefined
+        ? 0
+        : Number(row.penalty_balance),
     weekly_fuel_limit:
       row.weekly_fuel_limit === null || row.weekly_fuel_limit === undefined
         ? 2000
@@ -744,6 +759,7 @@ export async function getAdminRepairDrivers(): Promise<AdminRepairDriver[]> {
       .from("driver_account_summary")
       .select("*")
       .neq("role", "admin")
+      .gt("repair_balance", 0)
       .order("created_at", { ascending: false }),
     supabase
       .from("transactions")
@@ -754,39 +770,29 @@ export async function getAdminRepairDrivers(): Promise<AdminRepairDriver[]> {
   if (driversRes.error) throw new Error(driversRes.error.message);
   if (repairsRes.error) throw new Error(repairsRes.error.message);
 
-  const stats = new Map<
-    string,
-    { debt: number; repaid: number; last: string | null }
-  >();
+  const stats = new Map<string, { repaid: number; last: string | null }>();
   for (const t of (repairsRes.data ?? []) as Record<string, unknown>[]) {
     const driverId = String(t.driver_id);
     const amount = Number(t.amount ?? 0);
-    const entry = stats.get(driverId) ?? {
-      debt: 0,
-      repaid: 0,
-      last: null,
-    };
-    if (t.type === "repair_issue") entry.debt += amount;
+    const entry = stats.get(driverId) ?? { repaid: 0, last: null };
     if (t.type === "repair_repayment") entry.repaid += amount;
     const createdAt = t.created_at ? String(t.created_at) : null;
     if (createdAt && (!entry.last || createdAt > entry.last)) entry.last = createdAt;
     stats.set(driverId, entry);
   }
 
-  return ((driversRes.data ?? []) as Record<string, unknown>[])
-    .map((row) => {
-      const driver = mapAdminDriver(row);
-      const s = stats.get(driver.id);
-      if (!s || s.debt <= 0) return null;
-      return {
-        ...driver,
-        total_repair_debt: s.debt,
-        total_repair_repaid: s.repaid,
-        net_repair_position: s.debt - s.repaid,
-        last_repair_at: s.last,
-      };
-    })
-    .filter((d): d is AdminRepairDriver => d !== null);
+  return ((driversRes.data ?? []) as Record<string, unknown>[]).map((row) => {
+    const driver = mapAdminDriver(row);
+    const s = stats.get(driver.id) ?? { repaid: 0, last: null };
+    const outstanding = driver.repair_balance;
+    return {
+      ...driver,
+      total_repair_debt: outstanding + s.repaid,
+      total_repair_repaid: s.repaid,
+      net_repair_position: outstanding,
+      last_repair_at: s.last,
+    };
+  });
 }
 
 export type AdminDriverSearchOption = {
