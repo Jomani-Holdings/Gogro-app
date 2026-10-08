@@ -76,6 +76,7 @@ export type AdminDriver = {
   marketing_source: string | null;
   primary_service: string | null;
   driver_balance: number;
+  fuel_balance: number;
   weekly_fuel_limit: number;
   weekly_fuel_issued: number;
   weekly_fuel_available: number;
@@ -212,6 +213,10 @@ function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
       row.driver_balance === null || row.driver_balance === undefined
         ? 0
         : Number(row.driver_balance),
+    fuel_balance:
+      row.fuel_balance === null || row.fuel_balance === undefined
+        ? 0
+        : Number(row.fuel_balance),
     weekly_fuel_limit:
       row.weekly_fuel_limit === null || row.weekly_fuel_limit === undefined
         ? 2000

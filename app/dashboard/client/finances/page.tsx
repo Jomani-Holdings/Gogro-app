@@ -37,15 +37,44 @@ export default async function ClientLedgerPage() {
             Your full transaction history across fuel, repairs, rentals and more.
           </p>
         </div>
-        <div className="rounded-xl border border-grey/40 bg-white px-5 py-3 text-right">
-          <p className="text-xs font-medium text-textdark/50">
-            Current Balance
-          </p>
-          <p className="text-lg font-bold text-textdark">
-            {formatMoney(balances?.driver_balance ?? 0, 2)}
-          </p>
-        </div>
       </div>
+
+      <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-textdark/50">
+              Current Balance
+            </p>
+            <p className="text-3xl font-bold text-textdark mt-1">
+              {formatMoney(balances?.driver_balance ?? 0, 2)}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          {[
+            { label: "Fuel", amount: balances?.fuel_balance ?? 0 },
+            { label: "Repair", amount: balances?.repair_balance ?? 0 },
+            { label: "Rental", amount: balances?.rental_balance ?? 0 },
+            {
+              label: "Penalties & Adjustments",
+              amount: balances?.penalty_balance ?? 0,
+            },
+          ].map((bucket) => (
+            <div
+              key={bucket.label}
+              className="rounded-xl border border-grey/40 bg-offwhite px-4 py-3"
+            >
+              <p className="text-xs font-medium text-textdark/50">
+                {bucket.label}
+              </p>
+              <p className="text-lg font-semibold text-textdark mt-0.5">
+                {formatMoney(bucket.amount, 2)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="bg-white border border-grey/40 rounded-2xl overflow-hidden mt-6">
         {transactions.length === 0 ? (

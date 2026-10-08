@@ -11,10 +11,12 @@ import { sendFormInvite } from "@/app/dashboard/admin/leads/actions";
 export function AssignFormModal({
   leadId,
   forms,
+  approvedTemplateIds = [],
   disabled,
 }: {
   leadId: string;
   forms: FormTemplate[];
+  approvedTemplateIds?: string[];
   disabled?: boolean;
 }) {
   const router = useRouter();
@@ -25,7 +27,12 @@ export function AssignFormModal({
     null
   );
 
+  const approved = useMemo(
+    () => new Set(approvedTemplateIds),
+    [approvedTemplateIds]
+  );
   const selected = forms.find((form) => form.id === selectedId) ?? null;
+  const selectedApproved = selected ? approved.has(selected.id) : false;
 
   const previewHtml = useMemo(() => {
     if (!selected?.intro_content) return "";
@@ -37,7 +44,7 @@ export function AssignFormModal({
   }, [selected]);
 
   function send() {
-    if (!selectedId) return;
+    if (!selectedId || approved.has(selectedId)) return;
     setResult(null);
     startTransition(async () => {
       try {
@@ -111,8 +118,13 @@ export function AssignFormModal({
                   Select a form
                 </option>
                 {forms.map((form) => (
-                  <option key={form.id} value={form.id}>
+                  <option
+                    key={form.id}
+                    value={form.id}
+                    disabled={approved.has(form.id)}
+                  >
                     {form.name}
+                    {approved.has(form.id) ? " (already approved)" : ""}
                   </option>
                 ))}
               </select>
@@ -154,7 +166,7 @@ export function AssignFormModal({
             <div className="flex gap-3 mt-6">
               <button
                 type="button"
-                disabled={sending || !selectedId}
+                disabled={sending || !selectedId || selectedApproved}
                 onClick={send}
                 className="flex-1 rounded-lg bg-orange text-white font-semibold py-3 px-6 hover:bg-orange/90 disabled:opacity-50"
               >

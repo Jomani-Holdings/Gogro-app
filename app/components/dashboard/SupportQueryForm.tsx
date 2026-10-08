@@ -33,6 +33,11 @@ const queryCategories = [
     label: "Payment Issue",
     starter: "I need help making a payment or have a payment query.",
   },
+  {
+    value: "balance",
+    label: "Balance settlement",
+    starter: "I'd like to settle my outstanding balance.",
+  },
   { value: "other", label: "Other", starter: "" },
 ] as const;
 
@@ -46,6 +51,8 @@ export function SupportQueryForm({
   isRental,
   rentalVehicle,
   whatsappNumber,
+  defaultCategory,
+  defaultMessage,
 }: {
   fullName: string | null;
   phone: string | null;
@@ -56,10 +63,19 @@ export function SupportQueryForm({
   isRental: boolean;
   rentalVehicle: { make_model: string; registration: string } | null;
   whatsappNumber: string;
+  defaultCategory?: string | null;
+  defaultMessage?: string | null;
 }) {
-  const [category, setCategory] = useState<string>("breakdown");
+  const initialCategory =
+    defaultCategory &&
+    queryCategories.some((c) => c.value === defaultCategory)
+      ? defaultCategory
+      : "breakdown";
+  const [category, setCategory] = useState<string>(initialCategory);
   const [message, setMessage] = useState<string>(
-    queryCategories[0].starter
+    defaultMessage ??
+      queryCategories.find((c) => c.value === initialCategory)?.starter ??
+      ""
   );
 
   const categoryLabel =

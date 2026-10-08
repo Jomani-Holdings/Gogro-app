@@ -136,6 +136,30 @@ export async function updateSubmissionStatus(
           .eq("id", leadId);
       }
     } else {
+      const idNumber = formData.idNumber
+        ? String(formData.idNumber)
+        : formData.idOrPassport
+          ? String(formData.idOrPassport)
+          : null;
+      const suburbValue = formData.suburb
+        ? String(formData.suburb)
+        : formData.physicalAddress
+          ? String(formData.physicalAddress)
+          : null;
+      const licenseValid = formData.hasValidLicensePrdp
+        ? String(formData.hasValidLicensePrdp)
+        : null;
+      const yearsExperience = formData.yearsExperience
+        ? String(formData.yearsExperience)
+        : null;
+      const preferredCategory = formData.preferredVehicleCategory
+        ? String(formData.preferredVehicleCategory)
+        : null;
+      const marketingSource = formData.marketingSource
+        ? String(formData.marketingSource)
+        : formData.heardAboutUs
+          ? String(formData.heardAboutUs)
+          : null;
       const carMakeModel = formData.carMakeModelYear
         ? String(formData.carMakeModelYear)
         : null;
@@ -147,6 +171,13 @@ export async function updateSubmissionStatus(
       const fuelCode = await generateFuelCode(admin);
 
       profilePatch.primary_service = "fuel-credit";
+      if (idNumber) profilePatch.id_number = idNumber;
+      if (suburbValue) profilePatch.suburb = suburbValue;
+      if (licenseValid) profilePatch.license_valid = licenseValid;
+      if (yearsExperience) profilePatch.years_experience = yearsExperience;
+      if (preferredCategory)
+        profilePatch.preferred_vehicle_category = preferredCategory;
+      if (marketingSource) profilePatch.marketing_source = marketingSource;
       if (carMakeModel) profilePatch.car_make_model = carMakeModel;
       if (carRegistration) profilePatch.car_registration = carRegistration;
       if (creditLimit !== null) profilePatch.weekly_fuel_limit = creditLimit;

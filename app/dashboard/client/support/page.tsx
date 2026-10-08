@@ -46,12 +46,22 @@ const actions = [
   },
 ];
 
-export default async function DriverSupportPage() {
+export default async function DriverSupportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const profile = await requireClient();
   const [accountProfile, programme] = await Promise.all([
     getClientAccountProfile(profile.user_id),
     getClientProgrammeContext(profile.user_id),
   ]);
+
+  const params = await searchParams;
+  const defaultCategory =
+    typeof params.category === "string" ? params.category : null;
+  const defaultMessage =
+    typeof params.message === "string" ? params.message : null;
 
   const isRental = programme.primary_service === "vehicle-rental";
 
@@ -107,6 +117,8 @@ export default async function DriverSupportPage() {
         isRental={isRental}
         rentalVehicle={programme.vehicle}
         whatsappNumber={siteConfig.whatsapp.number}
+        defaultCategory={defaultCategory}
+        defaultMessage={defaultMessage}
       />
     </div>
   );
