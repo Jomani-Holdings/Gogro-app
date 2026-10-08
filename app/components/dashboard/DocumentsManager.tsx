@@ -41,7 +41,9 @@ export function DocumentsManager({
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   function docsFor(category: string) {
-    return documents.filter((doc) => doc.category === category);
+    return documents.filter(
+      (doc) => doc.category === category && doc.storage_path !== ""
+    );
   }
 
   function handleFile(category: string, file: File | undefined) {

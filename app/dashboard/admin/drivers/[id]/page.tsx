@@ -11,7 +11,6 @@ import { getDocumentsForUser } from "@/lib/data/documents";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { DriverForm } from "@/app/components/dashboard/DriverForm";
 import { DocumentsManager } from "@/app/components/dashboard/DocumentsManager";
-import { RequestDocumentsModal } from "@/app/components/dashboard/RequestDocumentsModal";
 import { Accordion } from "@/app/components/dashboard/Accordion";
 import { LogTransactionModal } from "@/app/components/dashboard/LogTransactionModal";
 import { SuspendDriverButton } from "@/app/components/dashboard/SuspendDriverButton";
@@ -91,7 +90,7 @@ export default async function AdminDriverProfilePage({
           >
             {statusLabels[driver.driver_status] ?? "Pending"}
           </span>
-          {driver.suspended ? (
+          {driver.suspended && driver.driver_status !== "suspended" ? (
             <span className="inline-block rounded-full px-3 py-1 text-sm font-semibold bg-error/10 text-error">
               Suspended
             </span>
@@ -112,22 +111,13 @@ export default async function AdminDriverProfilePage({
           />
           <SuspendDriverButton
             profileId={driver.id}
-            suspended={driver.suspended}
+            driverStatus={driver.driver_status}
           />
         </div>
       </div>
 
       <div className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-navy">Summary</h2>
-          <span
-            className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
-              statusStyles[driver.driver_status] ?? statusStyles.pending
-            }`}
-          >
-            {statusLabels[driver.driver_status] ?? "Pending"}
-          </span>
-        </div>
+        <h2 className="text-lg font-semibold text-navy mb-4">Summary</h2>
         <dl className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
           <Field label="Name" value={driver.full_name} />
           <Field label="Phone" value={driver.phone} />
@@ -183,10 +173,6 @@ export default async function AdminDriverProfilePage({
           />
           <Field label="Fuel Code" value={driver.fuel_code} />
           <Field label="Fuel Garage" value={driver.fuel_garage_name} />
-          <Field
-            label="Activity Status"
-            value={statusLabels[driver.driver_status] ?? driver.driver_status}
-          />
           <Field label="Suspended" value={driver.suspended ? "Yes" : "No"} />
         </dl>
       </div>
@@ -205,15 +191,6 @@ export default async function AdminDriverProfilePage({
             documents.some((doc) => doc.status === "pending")
               ? `${documents.filter((doc) => doc.status === "pending").length} pending`
               : null
-          }
-          actions={
-            lead?.id ? (
-              <RequestDocumentsModal
-                leadId={lead.id}
-                userId={driver.user_id}
-                existingCategories={documents.map((doc) => doc.category)}
-              />
-            ) : undefined
           }
         >
           <DocumentsManager

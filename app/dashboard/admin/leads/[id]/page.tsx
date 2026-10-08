@@ -54,7 +54,13 @@ export default async function AdminLeadDetailPage({
         <h1 className="text-2xl md:text-3xl font-bold text-textdark">
           {lead.full_name}
         </h1>
-        <AssignFormModal leadId={lead.id} forms={forms} />
+        <AssignFormModal
+          leadId={lead.id}
+          forms={forms}
+          approvedTemplateIds={submissions
+            .filter((submission) => submission.status === "approved")
+            .map((submission) => submission.form_template_id)}
+        />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6 mt-8">

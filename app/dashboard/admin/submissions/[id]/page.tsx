@@ -125,12 +125,6 @@ export default async function AdminSubmissionDetailPage({
             />
           </section>
 
-          <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
-            <h2 className="text-lg font-semibold text-navy mb-3">Raw data</h2>
-            <pre className="overflow-x-auto rounded-lg bg-grey/20 p-4 text-xs text-textdark/80">
-              {JSON.stringify(submission.data, null, 2)}
-            </pre>
-          </section>
         </div>
 
         <aside className="bg-white border border-grey/40 rounded-2xl p-6 h-fit">

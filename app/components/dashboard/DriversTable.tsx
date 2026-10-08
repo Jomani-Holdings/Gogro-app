@@ -25,7 +25,7 @@ type SortKey =
   | "phone"
   | "car_make_model"
   | "weekly_fuel_limit"
-  | "driver_balance"
+  | "fuel_balance"
   | "fuel_garage_name"
   | "fuel_code"
   | "driver_status"
@@ -230,8 +230,8 @@ export function DriversTable({
                     className="hidden lg:table-cell"
                   />
                   <SortableHeader
-                    label="Balance"
-                    column="driver_balance"
+                    label="Fuel Balance"
+                    column="fuel_balance"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onToggle={toggleSort}
@@ -293,7 +293,7 @@ export function DriversTable({
                       {formatMoney(driver.weekly_fuel_limit)}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3 text-textdark/80">
-                      {formatMoney(driver.driver_balance)}
+                      {formatMoney(driver.fuel_balance)}
                     </td>
                     <td className="hidden xl:table-cell px-4 py-3 text-textdark/80">
                       {driver.fuel_garage_name ?? "—"}

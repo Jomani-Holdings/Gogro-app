@@ -4,6 +4,10 @@ import type { TransactionType } from "@/lib/data/types";
 
 export type ClientBalances = {
   driver_balance: number;
+  fuel_balance: number;
+  repair_balance: number;
+  rental_balance: number;
+  penalty_balance: number;
   weekly_fuel_limit: number;
   weekly_fuel_issued: number;
   weekly_fuel_available: number;
@@ -236,7 +240,7 @@ export async function getClientBalances(userId: string): Promise<ClientBalances 
   const { data, error } = await supabase
     .from("driver_account_summary")
     .select(
-      "driver_balance, weekly_fuel_limit, weekly_fuel_issued, weekly_fuel_available, next_payment_due, is_overdue"
+      "driver_balance, fuel_balance, repair_balance, rental_balance, penalty_balance, weekly_fuel_limit, weekly_fuel_issued, weekly_fuel_available, next_payment_due, is_overdue"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -246,6 +250,10 @@ export async function getClientBalances(userId: string): Promise<ClientBalances 
   const row = data as Record<string, unknown>;
   return {
     driver_balance: Number(row.driver_balance ?? 0),
+    fuel_balance: Number(row.fuel_balance ?? 0),
+    repair_balance: Number(row.repair_balance ?? 0),
+    rental_balance: Number(row.rental_balance ?? 0),
+    penalty_balance: Number(row.penalty_balance ?? 0),
     weekly_fuel_limit: Number(row.weekly_fuel_limit ?? 2000),
     weekly_fuel_issued: Number(row.weekly_fuel_issued ?? 0),
     weekly_fuel_available: Number(row.weekly_fuel_available ?? 0),
@@ -358,24 +366,27 @@ export async function getClientRequiredActions(
 
   // 4. Payment due when there is an outstanding balance.
   if (balances) {
+    const formattedBalance = balances.driver_balance.toLocaleString("en-ZA", {
+      maximumFractionDigits: 2,
+    });
+    const settleHref = `/dashboard/client/support?category=balance&message=${encodeURIComponent(
+      `I'd like to settle my outstanding balance of R${formattedBalance}.`
+    )}`;
+
     if (balances.is_overdue) {
       actions.push({
         key: "overdue",
         label: "OVERDUE — settle your balance",
-        description: `Your account is overdue. Outstanding: R${balances.driver_balance.toLocaleString("en-ZA", {
-          maximumFractionDigits: 2,
-        })}.`,
-        href: "/dashboard/client/support",
+        description: `Your account is overdue. Outstanding: R${formattedBalance}.`,
+        href: settleHref,
         priority: "high",
       });
     } else if (balances.driver_balance > 0) {
       actions.push({
         key: "make_payment",
         label: "Settle your balance",
-        description: `Outstanding: R${balances.driver_balance.toLocaleString("en-ZA", {
-          maximumFractionDigits: 2,
-        })}.`,
-        href: "/dashboard/client/support",
+        description: `Outstanding: R${formattedBalance}.`,
+        href: settleHref,
         priority: "medium",
       });
     }

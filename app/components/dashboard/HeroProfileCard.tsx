@@ -20,6 +20,7 @@ export type HeroProfileCardProps = {
 function statusInfo(status: string): { label: string; dot: string } {
   if (status === "active") return { label: "Active", dot: "bg-success" };
   if (status === "suspended") return { label: "Suspended", dot: "bg-error" };
+  if (status === "inactive") return { label: "Inactive", dot: "bg-error" };
   if (status === "pending") return { label: "Pending", dot: "bg-yellow" };
   return { label: status.charAt(0).toUpperCase() + status.slice(1), dot: "bg-grey" };
 }

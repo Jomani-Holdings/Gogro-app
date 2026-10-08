@@ -92,7 +92,16 @@ export async function saveService(formData: FormData): Promise<void> {
   revalidatePath("/dashboard/admin/services");
   revalidatePath("/services");
   revalidatePath(`/services/${slug}`);
+  revalidatePath("/apply");
   redirect("/dashboard/admin/services");
+}
+
+function revalidatePartnerTypePaths(slug?: string): void {
+  revalidatePath("/dashboard/admin/partner-types");
+  revalidatePath("/partners");
+  revalidatePath("/partners/fuel");
+  revalidatePath("/partners/service");
+  if (slug) revalidatePath(`/partners/${slug}`);
 }
 
 export async function savePartnerType(formData: FormData): Promise<void> {
@@ -124,13 +133,21 @@ export async function savePartnerType(formData: FormData): Promise<void> {
     if (error) throw new Error(error.message);
   }
 
-  revalidatePath("/dashboard/admin/partner-types");
-  revalidatePath("/partners");
+  revalidatePartnerTypePaths(slug);
   redirect("/dashboard/admin/partner-types");
 }
 
 function garageImageKey(garageId: string, fileName: string): string {
   return `${GALLERY_BUCKET}/garages/${garageId}/${crypto.randomUUID()}-${slugifyFilename(fileName)}`;
+}
+
+function revalidateGaragePaths(): void {
+  revalidatePath("/dashboard/admin/garages");
+  revalidatePath("/partners");
+  revalidatePath("/partners/fuel");
+  revalidatePath("/partners/service");
+  revalidatePath("/how-it-works");
+  revalidatePath("/dashboard/client/garages");
 }
 
 export async function saveGarage(formData: FormData): Promise<void> {
@@ -214,23 +231,41 @@ export async function saveGarage(formData: FormData): Promise<void> {
     await admin.storage.from(GALLERY_BUCKET).remove([existingImagePath]);
   }
 
-  revalidatePath("/dashboard/admin/garages");
-  revalidatePath("/partners");
+  revalidateGaragePaths();
   redirect("/dashboard/admin/garages");
 }
 
 export async function deleteService(id: string): Promise<void> {
   const admin = createAdminClient();
+
+  const { data } = await admin
+    .from("services")
+    .select("slug")
+    .eq("id", id)
+    .maybeSingle();
+  const slug = data?.slug ? String(data.slug) : null;
+
   await admin.from("services").delete().eq("id", id);
+
   revalidatePath("/dashboard/admin/services");
   revalidatePath("/services");
+  if (slug) revalidatePath(`/services/${slug}`);
+  revalidatePath("/apply");
   redirect("/dashboard/admin/services");
 }
 
 export async function deletePartnerType(id: string): Promise<void> {
   const admin = createAdminClient();
+
+  const { data } = await admin
+    .from("partner_types")
+    .select("slug")
+    .eq("id", id)
+    .maybeSingle();
+  const slug = data?.slug ? String(data.slug) : undefined;
+
   await admin.from("partner_types").delete().eq("id", id);
-  revalidatePath("/dashboard/admin/partner-types");
+  revalidatePartnerTypePaths(slug);
   redirect("/dashboard/admin/partner-types");
 }
 
@@ -251,6 +286,6 @@ export async function deleteGarage(id: string): Promise<void> {
     await admin.storage.from(GALLERY_BUCKET).remove([data.image_path]);
   }
 
-  revalidatePath("/dashboard/admin/garages");
+  revalidateGaragePaths();
   redirect("/dashboard/admin/garages");
 }

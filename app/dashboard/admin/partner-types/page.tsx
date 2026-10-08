@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAdminPartnerTypes } from "@/lib/data/admin";
+import { DeletePartnerTypeButton } from "@/app/components/dashboard/DeletePartnerTypeButton";
 
 export default async function AdminPartnerTypesPage() {
   const types = await getAdminPartnerTypes();
@@ -36,7 +37,7 @@ export default async function AdminPartnerTypesPage() {
                 <th className="hidden md:table-cell px-4 py-3 font-medium">
                   Slug
                 </th>
-                <th className="px-4 py-3 font-medium text-right">Action</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -51,13 +52,16 @@ export default async function AdminPartnerTypesPage() {
                   <td className="hidden md:table-cell px-4 py-3 text-textdark/60">
                     {type.slug}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/dashboard/admin/partner-types/${type.id}/edit`}
-                      className="text-navy font-semibold hover:text-orange"
-                    >
-                      Edit &rarr;
-                    </Link>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-3">
+                      <Link
+                        href={`/dashboard/admin/partner-types/${type.id}/edit`}
+                        className="text-navy font-semibold hover:text-orange"
+                      >
+                        Edit
+                      </Link>
+                      <DeletePartnerTypeButton id={type.id} name={type.name} />
+                    </div>
                   </td>
                 </tr>
               ))}

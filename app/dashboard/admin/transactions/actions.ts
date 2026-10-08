@@ -126,6 +126,40 @@ export async function logTransaction(
     });
   }
 
+  // Fuel debt drives activity status: once a fuel repayment clears the fuel
+  // balance, an inactive driver is automatically reactivated. Partial payments
+  // leave them inactive.
+  if (type === "fuel_repayment") {
+    const { data: balanceRow } = await admin
+      .from("profiles")
+      .select("fuel_balance, driver_status")
+      .eq("id", driverId)
+      .maybeSingle();
+
+    if (
+      balanceRow &&
+      Number(balanceRow.fuel_balance ?? 0) <= 0 &&
+      balanceRow.driver_status === "inactive"
+    ) {
+      await admin
+        .from("profiles")
+        .update({
+          driver_status: "active",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", driverId);
+
+      if (driverProfile?.user_id) {
+        await notifyUser(String(driverProfile.user_id), {
+          title: "Account reactivated",
+          body: "Your fuel balance has been settled. Your account is active again.",
+          link: "/dashboard/client",
+          type: "transaction",
+        });
+      }
+    }
+  }
+
   // Unauthorized over-limit fuel issue: auto-log the R100 penalty fee.
   if (type === "fuel_issue" && overLimit && overrideAction === "unauthorized") {
     const penaltyPayload: Record<string, unknown> = {
