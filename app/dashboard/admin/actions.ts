@@ -3,17 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function setDriverSuspended(
+export async function setDriverActivation(
   profileId: string,
-  suspended: boolean
+  inactive: boolean
 ): Promise<{ ok: boolean; error?: string }> {
   const admin = createAdminClient();
 
   const { error } = await admin
     .from("profiles")
     .update({
-      suspended,
-      driver_status: suspended ? "suspended" : "active",
+      suspended: false,
+      driver_status: inactive ? "inactive" : "active",
       updated_at: new Date().toISOString(),
     })
     .eq("id", profileId);
