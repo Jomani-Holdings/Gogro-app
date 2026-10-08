@@ -17,7 +17,6 @@ const labelClass = "block text-sm font-semibold text-textdark mb-1.5";
 const STATUSES = [
   { value: "pending", label: "Pending" },
   { value: "active", label: "Active" },
-  { value: "suspended", label: "Suspended" },
   { value: "inactive", label: "Inactive" },
 ];
 
@@ -36,7 +35,11 @@ export function DriverForm({
   const [fullName, setFullName] = useState(driver?.full_name ?? "");
   const [email, setEmail] = useState(driver?.email ?? "");
   const [phone, setPhone] = useState(driver?.phone ?? "");
-  const [status, setStatus] = useState(driver?.driver_status ?? "pending");
+  const [status, setStatus] = useState(
+    driver?.driver_status === "suspended"
+      ? "inactive"
+      : (driver?.driver_status ?? "pending")
+  );
   const [carMakeModel, setCarMakeModel] = useState(driver?.car_make_model ?? "");
   const [carRegistration, setCarRegistration] = useState(
     driver?.car_registration ?? ""

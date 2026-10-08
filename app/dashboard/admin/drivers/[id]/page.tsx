@@ -111,7 +111,7 @@ export default async function AdminDriverProfilePage({
           />
           <SuspendDriverButton
             profileId={driver.id}
-            suspended={driver.suspended}
+            driverStatus={driver.driver_status}
           />
         </div>
       </div>
