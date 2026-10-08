@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { DashboardShell } from "@/app/components/dashboard/DashboardShell";
 import { SuspendedScreen } from "@/app/components/dashboard/SuspendedScreen";
+import { InactiveAccountBanner } from "@/app/components/dashboard/InactiveAccountBanner";
 import { adminNav, adminSiteGroup, clientNav } from "@/lib/dashboard-nav";
 
 export default async function DashboardLayout({
@@ -18,6 +19,8 @@ export default async function DashboardLayout({
   }
 
   const isAdmin = profile.role === "admin";
+  const showInactiveBanner =
+    !isAdmin && profile.driver_status === "inactive";
 
   return (
     <DashboardShell
@@ -27,6 +30,7 @@ export default async function DashboardLayout({
       fullName={profile.full_name}
       email={profile.email}
     >
+      {showInactiveBanner ? <InactiveAccountBanner /> : null}
       {children}
     </DashboardShell>
   );

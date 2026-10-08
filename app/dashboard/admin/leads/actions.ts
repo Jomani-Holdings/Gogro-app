@@ -102,6 +102,21 @@ export async function sendFormInvite(
     return { ok: false, error: "Selected form template is not available." };
   }
 
+  const { data: existingApproved } = await admin
+    .from("form_submissions")
+    .select("id")
+    .eq("lead_id", leadId)
+    .eq("form_template_id", formTemplateId)
+    .eq("status", "approved")
+    .maybeSingle();
+
+  if (existingApproved) {
+    return {
+      ok: false,
+      error: `This lead has already been approved for ${template.name}.`,
+    };
+  }
+
   const ttlRaw = process.env.FORM_TOKEN_TTL_DAYS;
   const ttlParsed = Number(ttlRaw || 7);
   const ttlDays = Number.isFinite(ttlParsed) && ttlParsed > 0 ? ttlParsed : 7;
