@@ -24,17 +24,13 @@ export function DeleteGarageButton({
           if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
           setError(null);
           startTransition(async () => {
-            try {
-              await deleteGarage(id);
-              router.refresh();
-            } catch (err) {
-              setError(
-                err instanceof Error
-                  ? err.message
-                  : "Could not delete garage. Please try again."
-              );
-              router.refresh();
+            const result = await deleteGarage(id);
+            if (!result.ok) {
+              setError(result.error ?? "Could not delete garage. Please try again.");
+            } else {
+              setError(null);
             }
+            router.refresh();
           });
         }}
         className="text-error font-semibold hover:underline disabled:opacity-50"

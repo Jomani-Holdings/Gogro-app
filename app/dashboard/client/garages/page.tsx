@@ -4,7 +4,7 @@ import { GarageLocator } from "@/app/components/dashboard/GarageLocator";
 
 export default async function DriverGaragesPage() {
   await requireClient();
-  const garages = await getGaragesByTypeSlug("service");
+  const garages = await getGaragesByTypeSlug("fuel");
 
   return (
     <div>

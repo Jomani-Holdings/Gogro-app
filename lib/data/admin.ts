@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DOCUMENTS_BUCKET } from "@/lib/media";
 import type { JSONContent } from "@tiptap/core";
 import type {
   Service,
@@ -852,6 +853,215 @@ export async function getAdminTransactions(
     const driver = (row.profiles as { full_name?: string | null } | null) ?? null;
     return { ...base, driver_name: driver?.full_name ?? null };
   });
+}
+
+export type Paginated<T> = {
+  rows: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+export type PaymentProofStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "disputed";
+
+export type AdminPaymentProof = {
+  id: string;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewer_notes: string | null;
+  status: PaymentProofStatus;
+  category: string;
+  filename: string;
+  driver_id: string | null;
+  driver_name: string | null;
+  fuel_code: string | null;
+  fuel_balance: number;
+  proof_url: string | null;
+};
+
+export type PaymentProofFilters = {
+  status?: string;
+  category?: string;
+  query?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+async function findMatchingProfileIds(query: string): Promise<string[]> {
+  const supabase = createAdminClient();
+  const term = query.trim().replace(/[%,]/g, "");
+  if (!term) return [];
+  const { data } = await supabase
+    .from("profiles")
+    .select("id")
+    .or(`full_name.ilike.%${term}%,fuel_code.ilike.%${term}%`);
+  return ((data ?? []) as { id: string }[]).map((row) => String(row.id));
+}
+
+export async function getAdminPaymentProofs(
+  filters: PaymentProofFilters
+): Promise<Paginated<AdminPaymentProof>> {
+  const supabase = createAdminClient();
+  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
+  const rangeFrom = (page - 1) * pageSize;
+  const rangeTo = rangeFrom + pageSize - 1;
+
+  const empty: Paginated<AdminPaymentProof> = {
+    rows: [],
+    total: 0,
+    page,
+    pageSize,
+    pageCount: 0,
+  };
+
+  let profileIds: string[] | null = null;
+  if (filters.query && filters.query.trim()) {
+    profileIds = await findMatchingProfileIds(filters.query);
+    if (profileIds.length === 0) return empty;
+  }
+
+  let q = supabase
+    .from("payment_proofs")
+    .select(
+      "id, created_at, reviewed_at, reviewer_notes, status, category, filename, storage_path, profile_id, profiles(full_name, fuel_code, fuel_balance)",
+      { count: "exact" }
+    )
+    .order("created_at", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status && filters.status !== "all") {
+    q = q.eq("status", filters.status);
+  }
+  if (filters.category && filters.category !== "all") {
+    q = q.eq("category", filters.category);
+  }
+  if (filters.from) q = q.gte("created_at", filters.from);
+  if (filters.to) q = q.lte("created_at", `${filters.to}T23:59:59.999Z`);
+  if (profileIds) q = q.in("profile_id", profileIds);
+
+  const { data, error, count } = await q;
+  if (error) throw new Error(error.message);
+
+  const rows = await Promise.all(
+    ((data ?? []) as Record<string, unknown>[]).map(async (row) => {
+      const profile =
+        (row.profiles as {
+          full_name?: string | null;
+          fuel_code?: string | null;
+          fuel_balance?: number | null;
+        } | null) ?? null;
+
+      let proofUrl: string | null = null;
+      if (row.storage_path) {
+        const { data: signed } = await supabase.storage
+          .from(DOCUMENTS_BUCKET)
+          .createSignedUrl(String(row.storage_path), 60 * 60);
+        proofUrl = signed?.signedUrl ?? null;
+      }
+
+      return {
+        id: String(row.id),
+        created_at: String(row.created_at),
+        reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
+        reviewer_notes: row.reviewer_notes ? String(row.reviewer_notes) : null,
+        status: String(row.status ?? "pending") as PaymentProofStatus,
+        category: String(row.category ?? "fuel_repayment"),
+        filename: String(row.filename ?? "proof"),
+        driver_id: row.profile_id ? String(row.profile_id) : null,
+        driver_name: profile?.full_name ?? null,
+        fuel_code: profile?.fuel_code ?? null,
+        fuel_balance: Number(profile?.fuel_balance ?? 0),
+        proof_url: proofUrl,
+      };
+    })
+  );
+
+  const total = count ?? 0;
+  return {
+    rows,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.ceil(total / pageSize),
+  };
+}
+
+export type RepaymentHistoryFilters = {
+  type?: string;
+  query?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function getAdminRepaymentTransactions(
+  filters: RepaymentHistoryFilters
+): Promise<Paginated<AdminTransaction>> {
+  const supabase = createAdminClient();
+  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
+  const rangeFrom = (page - 1) * pageSize;
+  const rangeTo = rangeFrom + pageSize - 1;
+
+  const empty: Paginated<AdminTransaction> = {
+    rows: [],
+    total: 0,
+    page,
+    pageSize,
+    pageCount: 0,
+  };
+
+  const types =
+    filters.type && filters.type !== "all"
+      ? [filters.type]
+      : ["fuel_repayment", "repair_repayment", "rental_repayment"];
+
+  let driverIds: string[] | null = null;
+  if (filters.query && filters.query.trim()) {
+    driverIds = await findMatchingProfileIds(filters.query);
+    if (driverIds.length === 0) return empty;
+  }
+
+  let q = supabase
+    .from("transactions")
+    .select("*, vehicles(make_model), garages(name), profiles(full_name)", {
+      count: "exact",
+    })
+    .in("type", types)
+    .order("created_at", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.from) q = q.gte("created_at", filters.from);
+  if (filters.to) q = q.lte("created_at", `${filters.to}T23:59:59.999Z`);
+  if (driverIds) q = q.in("driver_id", driverIds);
+
+  const { data, error, count } = await q;
+  if (error) throw new Error(error.message);
+
+  const rows = ((data ?? []) as Record<string, unknown>[]).map((row) => {
+    const base = mapTransaction(row);
+    const driver =
+      (row.profiles as { full_name?: string | null } | null) ?? null;
+    return { ...base, driver_name: driver?.full_name ?? null };
+  });
+
+  const total = count ?? 0;
+  return {
+    rows,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.ceil(total / pageSize),
+  };
 }
 
 export async function getAdminPages(): Promise<PageRecord[]> {

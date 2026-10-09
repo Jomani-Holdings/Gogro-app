@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useTransition } from "react";
 import { MessageCircle } from "lucide-react";
+import { uploadPaymentProof } from "@/app/dashboard/client/actions";
+import { siteConfig } from "@/app/lib/site-config";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -24,6 +26,12 @@ const queryCategories = [
     starter: "I have a question about my account balance and transactions.",
   },
   {
+    value: "account-deactivated",
+    label: "Account Deactivated",
+    starter:
+      "My account has been deactivated. Please let me know why and how I can reactivate it.",
+  },
+  {
     value: "fuel",
     label: "Fuel Credit Issue",
     starter: "I have an issue with my fuel credit.",
@@ -32,6 +40,11 @@ const queryCategories = [
     value: "payment",
     label: "Payment Issue",
     starter: "I need help making a payment or have a payment query.",
+  },
+  {
+    value: "fuel-repayment",
+    label: "Fuel Repayment",
+    starter: "Hi, please find attached my payment for my fuel account.",
   },
   {
     value: "balance",
@@ -44,7 +57,6 @@ const queryCategories = [
 export function SupportQueryForm({
   fullName,
   phone,
-  email,
   fuelCode,
   carMakeModel,
   carRegistration,
@@ -56,7 +68,6 @@ export function SupportQueryForm({
 }: {
   fullName: string | null;
   phone: string | null;
-  email: string | null;
   fuelCode: string | null;
   carMakeModel: string | null;
   carRegistration: string | null;
@@ -77,36 +88,73 @@ export function SupportQueryForm({
       queryCategories.find((c) => c.value === initialCategory)?.starter ??
       ""
   );
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   const categoryLabel =
     queryCategories.find((c) => c.value === category)?.label ?? "Other";
 
   function onCategoryChange(value: string) {
     setCategory(value);
+    setError(null);
     const starter =
       queryCategories.find((c) => c.value === value)?.starter ?? "";
     setMessage(starter);
   }
 
-  const waLink = useMemo(() => {
+  function buildWaLink(proofUrl?: string) {
     const identity = fullName?.trim() ?? "a driver";
     const details = isRental
       ? rentalVehicle?.make_model
         ? ` I'm driving ${rentalVehicle.make_model} (${rentalVehicle.registration}).`
         : ""
       : ` Fuel code: ${fuelCode ?? "—"}, Car: ${carRegistration ?? "—"}.`;
-    const body = `Hi Go Gro Mobility, I'm ${identity}.${details} I need help with: ${categoryLabel}.${message.trim() ? ` ${message.trim()}` : ""}`;
+    const proof = proofUrl ? ` Proof of payment: ${proofUrl}` : "";
+    const body = `Hi Go Gro Mobility, I'm ${identity}.${details} I need help with: ${categoryLabel}.${message.trim() ? ` ${message.trim()}` : ""}${proof}`;
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(body)}`;
-  }, [
-    fullName,
-    isRental,
-    rentalVehicle,
-    fuelCode,
-    carRegistration,
-    categoryLabel,
-    message,
-    whatsappNumber,
-  ]);
+  }
+
+  function submit() {
+    setError(null);
+
+    if (category !== "fuel-repayment") {
+      window.open(buildWaLink(), "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (!file) {
+      setError("Please attach your proof of payment.");
+      return;
+    }
+
+    const waWindow = window.open("", "_blank");
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const result = await uploadPaymentProof(formData);
+        if (!result.ok || !result.signedUrl) {
+          waWindow?.close();
+          setError(result.error ?? "Could not upload your proof of payment.");
+          return;
+        }
+        const link = buildWaLink(result.signedUrl);
+        if (waWindow) {
+          waWindow.location.href = link;
+        } else {
+          window.open(link, "_blank", "noopener,noreferrer");
+        }
+      } catch (err) {
+        waWindow?.close();
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again."
+        );
+      }
+    });
+  }
 
   return (
     <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
@@ -192,23 +240,50 @@ export function SupportQueryForm({
         </div>
       </div>
 
+      {category === "fuel-repayment" ? (
+        <div className="mt-4">
+          <label className={labelClass} htmlFor="payment-proof">
+            Proof of payment
+          </label>
+          <input
+            id="payment-proof"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setError(null);
+            }}
+            className="w-full rounded-lg border border-grey/60 bg-white px-3 py-2 text-sm text-textdark file:mr-3 file:rounded-md file:border-0 file:bg-navy/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-navy hover:file:bg-navy/20"
+          />
+          <p className="mt-1 text-xs text-textdark/50">
+            PDF, JPG or PNG up to 5MB.
+          </p>
+        </div>
+      ) : null}
+
       <div className="mt-5 flex justify-end">
-        <a
-          href={waLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-success text-white font-semibold py-3 px-6 hover:bg-success/90"
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending}
+          className="inline-flex items-center gap-2 rounded-lg bg-success text-white font-semibold py-3 px-6 hover:bg-success/90 disabled:opacity-60"
         >
           <MessageCircle size={18} />
-          Chat on WhatsApp
-        </a>
+          {pending ? "Uploading…" : "Chat on WhatsApp"}
+        </button>
       </div>
 
-      {email ? (
-        <p className="mt-4 text-xs text-textdark/50">
-          Prefer email? Reach us at the details above.
-        </p>
-      ) : null}
+      {error ? <p className="mt-3 text-sm text-error">{error}</p> : null}
+
+      <p className="mt-4 text-sm text-textdark/60">
+        Prefer email? Contact{" "}
+        <a
+          href={`mailto:${siteConfig.email}`}
+          className="font-semibold text-navy underline"
+        >
+          {siteConfig.email}
+        </a>
+      </p>
     </section>
   );
 }

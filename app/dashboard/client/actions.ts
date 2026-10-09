@@ -10,6 +10,7 @@ import { getTemplateBySlug, sendEmail } from "@/lib/mail";
 import {
   DOCUMENTS_BUCKET,
   MAX_CLIENT_DOCUMENT_SIZE,
+  MAX_PAYMENT_PROOF_SIZE,
   slugifyFilename,
 } from "@/lib/media";
 import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/lib/data/types";
@@ -119,4 +120,79 @@ export async function uploadClientDocument(
 
   revalidatePath("/dashboard/client");
   return { ok: true };
+}
+
+export type PaymentProofActionResult = {
+  ok: boolean;
+  signedUrl?: string;
+  filename?: string;
+  error?: string;
+};
+
+const PAYMENT_PROOF_SIGNED_URL_TTL = 60 * 60 * 24 * 30; // 30 days
+
+export async function uploadPaymentProof(
+  formData: FormData
+): Promise<PaymentProofActionResult> {
+  const profile = await requireClient();
+  const user = { id: profile.user_id, email: profile.email };
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Please attach your proof of payment." };
+  }
+  if (file.size > MAX_PAYMENT_PROOF_SIZE) {
+    return { ok: false, error: "File is larger than the 5MB limit." };
+  }
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return { ok: false, error: "Only PDF, JPG or PNG files are allowed." };
+  }
+
+  const admin = createAdminClient();
+  const storagePath = `payment-proofs/${user.id}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  const { error: uploadError } = await admin.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(storagePath, bytes, {
+      contentType: file.type,
+      cacheControl: "3600",
+      upsert: false,
+    });
+  if (uploadError) return { ok: false, error: uploadError.message };
+
+  const { error: insertError } = await admin.from("payment_proofs").insert({
+    user_id: user.id,
+    profile_id: profile.id,
+    storage_path: storagePath,
+    filename: file.name,
+    category: "fuel_repayment",
+    status: "pending",
+  });
+  if (insertError) {
+    await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
+    return { ok: false, error: insertError.message };
+  }
+
+  const { data: signed, error: signedError } = await admin.storage
+    .from(DOCUMENTS_BUCKET)
+    .createSignedUrl(storagePath, PAYMENT_PROOF_SIGNED_URL_TTL);
+  if (signedError || !signed?.signedUrl) {
+    return {
+      ok: false,
+      error: signedError?.message ?? "Could not create a shareable link.",
+    };
+  }
+
+  const driverName = profile.full_name ?? user.email ?? "A driver";
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  await notifyAllAdmins({
+    title: `New Proof of Payment uploaded by ${driverName}`,
+    body: `File: ${file.name}`,
+    link: `${baseUrl}/dashboard/admin/payments`,
+    type: "payment_proof",
+  });
+
+  revalidatePath("/dashboard/client/support");
+  return { ok: true, signedUrl: signed.signedUrl, filename: file.name };
 }

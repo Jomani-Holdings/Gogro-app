@@ -269,7 +269,9 @@ export async function deletePartnerType(id: string): Promise<void> {
   redirect("/dashboard/admin/partner-types");
 }
 
-export async function deleteGarage(id: string): Promise<void> {
+export async function deleteGarage(
+  id: string
+): Promise<{ ok: boolean; error?: string }> {
   const admin = createAdminClient();
 
   const { data, error: fetchError } = await admin
@@ -277,15 +279,17 @@ export async function deleteGarage(id: string): Promise<void> {
     .select("image_path")
     .eq("id", id)
     .maybeSingle();
-  if (fetchError || !data) throw new Error(fetchError?.message ?? "Not found");
+  if (fetchError || !data) {
+    return { ok: false, error: fetchError?.message ?? "Not found" };
+  }
 
   const { error } = await admin.from("garages").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, error: error.message };
 
   if (data.image_path) {
     await admin.storage.from(GALLERY_BUCKET).remove([data.image_path]);
   }
 
   revalidateGaragePaths();
-  redirect("/dashboard/admin/garages");
+  return { ok: true };
 }
