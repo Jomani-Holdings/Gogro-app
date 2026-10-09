@@ -270,6 +270,41 @@ export type ClientRequiredAction = {
   priority: "high" | "medium" | "low";
 };
 
+// Most recent Monday 14:00 in Africa/Johannesburg (SAST, UTC+2), returned as a
+// real UTC timestamp. Uses Intl for the timezone and plain Date arithmetic for
+// the roll-back so month/year boundaries are handled without string maths.
+function getCurrentSastMonday2PM(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Johannesburg",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+
+  const weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const w = weekdayNames.indexOf(get("weekday")); // 0 = Monday
+
+  const year = parseInt(get("year"), 10);
+  const month = parseInt(get("month"), 10); // 1-based
+  const day = parseInt(get("day"), 10);
+
+  // Treat the SAST wall-clock date as if it were UTC so ordinary Date
+  // arithmetic can roll back to Monday 14:00 without month-boundary bugs.
+  const sastAsUtc = Date.UTC(year, month - 1, day, 14, 0, 0);
+  const targetSastAsUtc = sastAsUtc - w * 24 * 60 * 60 * 1000;
+
+  // SAST is a fixed UTC+2 offset (no DST), so shift back to real UTC.
+  return targetSastAsUtc - 2 * 60 * 60 * 1000;
+}
+
 export async function getClientRequiredActions(
   userId: string
 ): Promise<ClientRequiredAction[]> {
@@ -364,28 +399,34 @@ export async function getClientRequiredActions(
     });
   }
 
-  // 4. Payment due when there is an outstanding balance.
-  if (balances) {
-    const formattedBalance = balances.driver_balance.toLocaleString("en-ZA", {
+  // 4. Fuel payment reminder. Credit control only chases fuel debt — repair,
+  //    rental and penalty balances are intentionally excluded. The reminder
+  //    appears from Monday 14:00 SAST and stays until the fuel balance clears.
+  if (
+    balances &&
+    balances.fuel_balance > 0 &&
+    Date.now() >= getCurrentSastMonday2PM()
+  ) {
+    const formattedBalance = balances.fuel_balance.toLocaleString("en-ZA", {
       maximumFractionDigits: 2,
     });
-    const settleHref = `/dashboard/client/support?category=balance&message=${encodeURIComponent(
-      `I'd like to settle my outstanding balance of R${formattedBalance}.`
+    const settleHref = `/dashboard/client/support?category=fuel-repayment&message=${encodeURIComponent(
+      `I'd like to settle my fuel balance of R${formattedBalance}.`
     )}`;
 
     if (balances.is_overdue) {
       actions.push({
-        key: "overdue",
-        label: "OVERDUE — settle your balance",
-        description: `Your account is overdue. Outstanding: R${formattedBalance}.`,
+        key: "overdue_fuel",
+        label: "OVERDUE — settle your fuel balance",
+        description: `Your fuel account is overdue. Fuel balance: R${formattedBalance}.`,
         href: settleHref,
         priority: "high",
       });
-    } else if (balances.driver_balance > 0) {
+    } else {
       actions.push({
-        key: "make_payment",
-        label: "Settle your balance",
-        description: `Outstanding: R${formattedBalance}.`,
+        key: "make_fuel_payment",
+        label: "Settle your fuel balance",
+        description: `Payment due Tuesday 12:00. Outstanding fuel balance: R${formattedBalance}.`,
         href: settleHref,
         priority: "medium",
       });

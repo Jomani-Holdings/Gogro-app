@@ -1,7 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { useRef, useState, useTransition, type ChangeEvent } from "react";
+import { FileText, MessageCircle } from "lucide-react";
+import {
+  deletePaymentProof,
+  uploadPaymentProof,
+} from "@/app/dashboard/client/actions";
+import { siteConfig } from "@/app/lib/site-config";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -24,6 +29,12 @@ const queryCategories = [
     starter: "I have a question about my account balance and transactions.",
   },
   {
+    value: "account-deactivated",
+    label: "Account Deactivated",
+    starter:
+      "My account has been deactivated. Please let me know why and how I can reactivate it.",
+  },
+  {
     value: "fuel",
     label: "Fuel Credit Issue",
     starter: "I have an issue with my fuel credit.",
@@ -32,6 +43,11 @@ const queryCategories = [
     value: "payment",
     label: "Payment Issue",
     starter: "I need help making a payment or have a payment query.",
+  },
+  {
+    value: "fuel-repayment",
+    label: "Fuel Repayment",
+    starter: "Hi, please find attached my payment for my fuel account.",
   },
   {
     value: "balance",
@@ -44,7 +60,6 @@ const queryCategories = [
 export function SupportQueryForm({
   fullName,
   phone,
-  email,
   fuelCode,
   carMakeModel,
   carRegistration,
@@ -56,7 +71,6 @@ export function SupportQueryForm({
 }: {
   fullName: string | null;
   phone: string | null;
-  email: string | null;
   fuelCode: string | null;
   carMakeModel: string | null;
   carRegistration: string | null;
@@ -77,36 +91,90 @@ export function SupportQueryForm({
       queryCategories.find((c) => c.value === initialCategory)?.starter ??
       ""
   );
+  const [uploaded, setUploaded] = useState<{
+    id: string;
+    signedUrl: string;
+    filename: string;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, startUpload] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categoryLabel =
     queryCategories.find((c) => c.value === category)?.label ?? "Other";
 
   function onCategoryChange(value: string) {
     setCategory(value);
+    setError(null);
     const starter =
       queryCategories.find((c) => c.value === value)?.starter ?? "";
     setMessage(starter);
   }
 
-  const waLink = useMemo(() => {
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    setError(null);
+    if (!selected) return;
+
+    const previousId = uploaded?.id ?? null;
+    const formData = new FormData();
+    formData.append("file", selected);
+
+    startUpload(async () => {
+      const result = await uploadPaymentProof(formData);
+      if (!result.ok || !result.id || !result.signedUrl) {
+        setError(result.error ?? "Could not upload your proof of payment.");
+        return;
+      }
+      if (previousId) {
+        await deletePaymentProof(previousId);
+      }
+      setUploaded({
+        id: result.id,
+        signedUrl: result.signedUrl,
+        filename: result.filename ?? selected.name,
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    });
+  }
+
+  function removeProof() {
+    if (!uploaded) return;
+    const id = uploaded.id;
+    setError(null);
+    startUpload(async () => {
+      const result = await deletePaymentProof(id);
+      if (!result.ok) {
+        setError(result.error ?? "Could not remove the proof.");
+        return;
+      }
+      setUploaded(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    });
+  }
+
+  function buildWaLink(proofUrl?: string) {
     const identity = fullName?.trim() ?? "a driver";
     const details = isRental
       ? rentalVehicle?.make_model
         ? ` I'm driving ${rentalVehicle.make_model} (${rentalVehicle.registration}).`
         : ""
       : ` Fuel code: ${fuelCode ?? "—"}, Car: ${carRegistration ?? "—"}.`;
-    const body = `Hi Go Gro Mobility, I'm ${identity}.${details} I need help with: ${categoryLabel}.${message.trim() ? ` ${message.trim()}` : ""}`;
+    const proof = proofUrl ? ` Proof of payment: ${proofUrl}` : "";
+    const body = `Hi Go Gro Mobility, I'm ${identity}.${details} I need help with: ${categoryLabel}.${message.trim() ? ` ${message.trim()}` : ""}${proof}`;
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(body)}`;
-  }, [
-    fullName,
-    isRental,
-    rentalVehicle,
-    fuelCode,
-    carRegistration,
-    categoryLabel,
-    message,
-    whatsappNumber,
-  ]);
+  }
+
+  function send() {
+    setError(null);
+
+    if (category === "fuel-repayment" && !uploaded) {
+      setError("Please upload your proof of payment first.");
+      return;
+    }
+
+    window.open(buildWaLink(uploaded?.signedUrl), "_blank", "noopener,noreferrer");
+  }
 
   return (
     <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
@@ -192,23 +260,86 @@ export function SupportQueryForm({
         </div>
       </div>
 
+      {category === "fuel-repayment" ? (
+        <div className="mt-4">
+          <label className={labelClass} htmlFor="payment-proof">
+            Proof of payment
+          </label>
+          <input
+            ref={fileInputRef}
+            id="payment-proof"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            onChange={onFileChange}
+            disabled={uploading}
+            className="w-full rounded-lg border border-grey/60 bg-white px-3 py-2 text-sm text-textdark file:mr-3 file:rounded-md file:border-0 file:bg-navy/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-navy hover:file:bg-navy/20 disabled:opacity-60"
+          />
+          <p className="mt-1 text-xs text-textdark/50">
+            PDF, JPG or PNG up to 5MB.
+          </p>
+
+          {uploading ? (
+            <p className="mt-3 text-sm text-textdark/60">Uploading…</p>
+          ) : null}
+
+          {uploaded && !uploading ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-grey/40 bg-offwhite p-3">
+              <div className="flex min-w-0 items-center gap-3">
+                {/\.(png|jpe?g)$/i.test(uploaded.filename) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={uploaded.signedUrl}
+                    alt={uploaded.filename}
+                    className="h-16 w-16 shrink-0 rounded-lg border border-grey/40 object-cover"
+                  />
+                ) : (
+                  <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-grey/40 text-textdark/50">
+                    <FileText size={22} />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-textdark">
+                    {uploaded.filename}
+                  </p>
+                  <p className="text-xs font-medium text-success">Uploaded</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={removeProof}
+                disabled={uploading}
+                className="shrink-0 text-xs font-semibold text-error hover:underline disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="mt-5 flex justify-end">
-        <a
-          href={waLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-success text-white font-semibold py-3 px-6 hover:bg-success/90"
+        <button
+          type="button"
+          onClick={send}
+          disabled={uploading}
+          className="inline-flex items-center gap-2 rounded-lg bg-success text-white font-semibold py-3 px-6 hover:bg-success/90 disabled:opacity-60"
         >
           <MessageCircle size={18} />
-          Chat on WhatsApp
-        </a>
+          Send on WhatsApp
+        </button>
       </div>
 
-      {email ? (
-        <p className="mt-4 text-xs text-textdark/50">
-          Prefer email? Reach us at the details above.
-        </p>
-      ) : null}
+      {error ? <p className="mt-3 text-sm text-error">{error}</p> : null}
+
+      <p className="mt-4 text-sm text-textdark/60">
+        Prefer email? Contact{" "}
+        <a
+          href={`mailto:${siteConfig.email}`}
+          className="font-semibold text-navy underline"
+        >
+          {siteConfig.email}
+        </a>
+      </p>
     </section>
   );
 }
