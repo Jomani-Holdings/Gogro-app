@@ -931,7 +931,7 @@ export async function getAdminPaymentProofs(
   let q = supabase
     .from("payment_proofs")
     .select(
-      "id, created_at, reviewed_at, reviewer_notes, status, category, filename, storage_path, profile_id, profiles(full_name, fuel_code, fuel_balance)",
+      "id, created_at, reviewed_at, reviewer_notes, status, category, filename, storage_path, profile_id, profiles!profile_id(full_name, fuel_code, fuel_balance)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })

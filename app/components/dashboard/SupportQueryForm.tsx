@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { MessageCircle } from "lucide-react";
-import { uploadPaymentProof } from "@/app/dashboard/client/actions";
+import { useRef, useState, useTransition, type ChangeEvent } from "react";
+import { FileText, MessageCircle } from "lucide-react";
+import {
+  deletePaymentProof,
+  uploadPaymentProof,
+} from "@/app/dashboard/client/actions";
 import { siteConfig } from "@/app/lib/site-config";
 
 const inputClass =
@@ -88,9 +91,14 @@ export function SupportQueryForm({
       queryCategories.find((c) => c.value === initialCategory)?.starter ??
       ""
   );
-  const [file, setFile] = useState<File | null>(null);
+  const [uploaded, setUploaded] = useState<{
+    id: string;
+    signedUrl: string;
+    filename: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [uploading, startUpload] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categoryLabel =
     queryCategories.find((c) => c.value === category)?.label ?? "Other";
@@ -101,6 +109,48 @@ export function SupportQueryForm({
     const starter =
       queryCategories.find((c) => c.value === value)?.starter ?? "";
     setMessage(starter);
+  }
+
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    setError(null);
+    if (!selected) return;
+
+    const previousId = uploaded?.id ?? null;
+    const formData = new FormData();
+    formData.append("file", selected);
+
+    startUpload(async () => {
+      const result = await uploadPaymentProof(formData);
+      if (!result.ok || !result.id || !result.signedUrl) {
+        setError(result.error ?? "Could not upload your proof of payment.");
+        return;
+      }
+      if (previousId) {
+        await deletePaymentProof(previousId);
+      }
+      setUploaded({
+        id: result.id,
+        signedUrl: result.signedUrl,
+        filename: result.filename ?? selected.name,
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    });
+  }
+
+  function removeProof() {
+    if (!uploaded) return;
+    const id = uploaded.id;
+    setError(null);
+    startUpload(async () => {
+      const result = await deletePaymentProof(id);
+      if (!result.ok) {
+        setError(result.error ?? "Could not remove the proof.");
+        return;
+      }
+      setUploaded(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    });
   }
 
   function buildWaLink(proofUrl?: string) {
@@ -115,45 +165,15 @@ export function SupportQueryForm({
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(body)}`;
   }
 
-  function submit() {
+  function send() {
     setError(null);
 
-    if (category !== "fuel-repayment") {
-      window.open(buildWaLink(), "_blank", "noopener,noreferrer");
+    if (category === "fuel-repayment" && !uploaded) {
+      setError("Please upload your proof of payment first.");
       return;
     }
 
-    if (!file) {
-      setError("Please attach your proof of payment.");
-      return;
-    }
-
-    const waWindow = window.open("", "_blank");
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const result = await uploadPaymentProof(formData);
-        if (!result.ok || !result.signedUrl) {
-          waWindow?.close();
-          setError(result.error ?? "Could not upload your proof of payment.");
-          return;
-        }
-        const link = buildWaLink(result.signedUrl);
-        if (waWindow) {
-          waWindow.location.href = link;
-        } else {
-          window.open(link, "_blank", "noopener,noreferrer");
-        }
-      } catch (err) {
-        waWindow?.close();
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Something went wrong. Please try again."
-        );
-      }
-    });
+    window.open(buildWaLink(uploaded?.signedUrl), "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -246,30 +266,66 @@ export function SupportQueryForm({
             Proof of payment
           </label>
           <input
+            ref={fileInputRef}
             id="payment-proof"
             type="file"
             accept=".pdf,.jpg,.jpeg,.png"
-            onChange={(e) => {
-              setFile(e.target.files?.[0] ?? null);
-              setError(null);
-            }}
-            className="w-full rounded-lg border border-grey/60 bg-white px-3 py-2 text-sm text-textdark file:mr-3 file:rounded-md file:border-0 file:bg-navy/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-navy hover:file:bg-navy/20"
+            onChange={onFileChange}
+            disabled={uploading}
+            className="w-full rounded-lg border border-grey/60 bg-white px-3 py-2 text-sm text-textdark file:mr-3 file:rounded-md file:border-0 file:bg-navy/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-navy hover:file:bg-navy/20 disabled:opacity-60"
           />
           <p className="mt-1 text-xs text-textdark/50">
             PDF, JPG or PNG up to 5MB.
           </p>
+
+          {uploading ? (
+            <p className="mt-3 text-sm text-textdark/60">Uploading…</p>
+          ) : null}
+
+          {uploaded && !uploading ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-grey/40 bg-offwhite p-3">
+              <div className="flex min-w-0 items-center gap-3">
+                {/\.(png|jpe?g)$/i.test(uploaded.filename) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={uploaded.signedUrl}
+                    alt={uploaded.filename}
+                    className="h-16 w-16 shrink-0 rounded-lg border border-grey/40 object-cover"
+                  />
+                ) : (
+                  <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-grey/40 text-textdark/50">
+                    <FileText size={22} />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-textdark">
+                    {uploaded.filename}
+                  </p>
+                  <p className="text-xs font-medium text-success">Uploaded</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={removeProof}
+                disabled={uploading}
+                className="shrink-0 text-xs font-semibold text-error hover:underline disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       <div className="mt-5 flex justify-end">
         <button
           type="button"
-          onClick={submit}
-          disabled={pending}
+          onClick={send}
+          disabled={uploading}
           className="inline-flex items-center gap-2 rounded-lg bg-success text-white font-semibold py-3 px-6 hover:bg-success/90 disabled:opacity-60"
         >
           <MessageCircle size={18} />
-          {pending ? "Uploading…" : "Chat on WhatsApp"}
+          Send on WhatsApp
         </button>
       </div>
 

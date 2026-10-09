@@ -124,6 +124,7 @@ export async function uploadClientDocument(
 
 export type PaymentProofActionResult = {
   ok: boolean;
+  id?: string;
   signedUrl?: string;
   filename?: string;
   error?: string;
@@ -161,17 +162,21 @@ export async function uploadPaymentProof(
     });
   if (uploadError) return { ok: false, error: uploadError.message };
 
-  const { error: insertError } = await admin.from("payment_proofs").insert({
-    user_id: user.id,
-    profile_id: profile.id,
-    storage_path: storagePath,
-    filename: file.name,
-    category: "fuel_repayment",
-    status: "pending",
-  });
-  if (insertError) {
+  const { data: inserted, error: insertError } = await admin
+    .from("payment_proofs")
+    .insert({
+      user_id: user.id,
+      profile_id: profile.id,
+      storage_path: storagePath,
+      filename: file.name,
+      category: "fuel_repayment",
+      status: "pending",
+    })
+    .select("id")
+    .single();
+  if (insertError || !inserted) {
     await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
-    return { ok: false, error: insertError.message };
+    return { ok: false, error: insertError?.message ?? "Could not save proof." };
   }
 
   const { data: signed, error: signedError } = await admin.storage
@@ -194,5 +199,44 @@ export async function uploadPaymentProof(
   });
 
   revalidatePath("/dashboard/client/support");
-  return { ok: true, signedUrl: signed.signedUrl, filename: file.name };
+  return {
+    ok: true,
+    id: String(inserted.id),
+    signedUrl: signed.signedUrl,
+    filename: file.name,
+  };
+}
+
+export async function deletePaymentProof(
+  id: string
+): Promise<{ ok: boolean; error?: string }> {
+  const profile = await requireClient();
+  const proofId = String(id ?? "").trim();
+  if (!proofId) return { ok: false, error: "Missing proof." };
+
+  const admin = createAdminClient();
+  const { data, error: fetchError } = await admin
+    .from("payment_proofs")
+    .select("id, user_id, storage_path")
+    .eq("id", proofId)
+    .maybeSingle();
+
+  if (fetchError || !data || String(data.user_id) !== profile.user_id) {
+    return { ok: false, error: "Proof not found." };
+  }
+
+  const { error: deleteError } = await admin
+    .from("payment_proofs")
+    .delete()
+    .eq("id", proofId);
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  if (data.storage_path) {
+    await admin.storage
+      .from(DOCUMENTS_BUCKET)
+      .remove([String(data.storage_path)]);
+  }
+
+  revalidatePath("/dashboard/client/support");
+  return { ok: true };
 }

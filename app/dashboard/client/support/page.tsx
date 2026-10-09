@@ -45,6 +45,7 @@ export default async function DriverSupportPage({
 
       <div id="support-form" className="scroll-mt-24">
         <SupportQueryForm
+          key={`support-form-${defaultCategory ?? ""}-${defaultMessage ?? ""}`}
           fullName={profile.full_name}
           phone={profile.phone}
           fuelCode={accountProfile?.fuel_code ?? null}
