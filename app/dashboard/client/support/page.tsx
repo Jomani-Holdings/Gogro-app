@@ -1,50 +1,12 @@
-import { MessageCircle, AlertTriangle, CarFront, Headphones } from "lucide-react";
-import { getWhatsAppLink, siteConfig } from "@/app/lib/site-config";
+import { siteConfig } from "@/app/lib/site-config";
 import { requireClient } from "@/lib/auth";
 import {
   getClientAccountProfile,
+  getClientBalances,
   getClientProgrammeContext,
 } from "@/lib/data/client";
+import { BankingDetailsTile } from "@/app/components/dashboard/BankingDetailsTile";
 import { SupportQueryForm } from "@/app/components/dashboard/SupportQueryForm";
-
-const actions = [
-  {
-    title: "Breakdown Assistance",
-    description: "Your vehicle has broken down and you need immediate help.",
-    icon: AlertTriangle,
-    href: getWhatsAppLink(
-      "Hi Go Gro Mobility, I need breakdown assistance right now."
-    ),
-    external: true,
-    color: "text-error",
-  },
-  {
-    title: "Report an Accident",
-    description: "Report an accident and get guidance on the next steps.",
-    icon: CarFront,
-    href: getWhatsAppLink(
-      "Hi Go Gro Mobility, I would like to report an accident."
-    ),
-    external: true,
-    color: "text-orange",
-  },
-  {
-    title: "General Support",
-    description: "Questions about your account, fuel credit, or services.",
-    icon: Headphones,
-    href: getWhatsAppLink(),
-    external: true,
-    color: "text-navy",
-  },
-  {
-    title: "Email Us",
-    description: `Prefer email? Reach us at ${siteConfig.email}.`,
-    icon: MessageCircle,
-    href: `mailto:${siteConfig.email}`,
-    external: false,
-    color: "text-success",
-  },
-];
 
 export default async function DriverSupportPage({
   searchParams,
@@ -52,8 +14,9 @@ export default async function DriverSupportPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const profile = await requireClient();
-  const [accountProfile, programme] = await Promise.all([
+  const [accountProfile, balances, programme] = await Promise.all([
     getClientAccountProfile(profile.user_id),
+    getClientBalances(profile.user_id),
     getClientProgrammeContext(profile.user_id),
   ]);
 
@@ -72,54 +35,29 @@ export default async function DriverSupportPage({
         One-tap access to the help you need, when you need it.
       </p>
 
-      <div className="grid sm:grid-cols-2 gap-4 mt-8">
-        {actions.map((action) => {
-          const Icon = action.icon;
-          const inner = (
-            <>
-              <Icon size={24} className={action.color} />
-              <h3 className="font-semibold text-textdark">{action.title}</h3>
-              <p className="text-sm text-textdark/60 mt-1">
-                {action.description}
-              </p>
-            </>
-          );
-
-          return action.external ? (
-            <a
-              key={action.title}
-              href={action.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white border border-grey/40 rounded-2xl p-6 flex flex-col gap-2 hover:border-orange transition-colors"
-            >
-              {inner}
-            </a>
-          ) : (
-            <a
-              key={action.title}
-              href={action.href}
-              className="bg-white border border-grey/40 rounded-2xl p-6 flex flex-col gap-2 hover:border-orange transition-colors"
-            >
-              {inner}
-            </a>
-          );
-        })}
+      <div className="mt-8">
+        <BankingDetailsTile
+          fullName={accountProfile?.full_name ?? profile.full_name}
+          fuelCode={accountProfile?.fuel_code ?? null}
+          outstandingBalance={balances?.fuel_balance ?? 0}
+        />
       </div>
 
-      <SupportQueryForm
-        fullName={profile.full_name}
-        phone={profile.phone}
-        email={profile.email}
-        fuelCode={accountProfile?.fuel_code ?? null}
-        carMakeModel={accountProfile?.car_make_model ?? null}
-        carRegistration={accountProfile?.car_registration ?? null}
-        isRental={isRental}
-        rentalVehicle={programme.vehicle}
-        whatsappNumber={siteConfig.whatsapp.number}
-        defaultCategory={defaultCategory}
-        defaultMessage={defaultMessage}
-      />
+      <div id="support-form" className="scroll-mt-24">
+        <SupportQueryForm
+          key={`support-form-${defaultCategory ?? ""}-${defaultMessage ?? ""}`}
+          fullName={profile.full_name}
+          phone={profile.phone}
+          fuelCode={accountProfile?.fuel_code ?? null}
+          carMakeModel={accountProfile?.car_make_model ?? null}
+          carRegistration={accountProfile?.car_registration ?? null}
+          isRental={isRental}
+          rentalVehicle={programme.vehicle}
+          whatsappNumber={siteConfig.whatsapp.number}
+          defaultCategory={defaultCategory}
+          defaultMessage={defaultMessage}
+        />
+      </div>
     </div>
   );
 }

@@ -10,18 +10,18 @@ export function InactiveAccountBanner() {
         </span>
         <div className="flex-1">
           <h2 className="font-bold text-error tracking-wide">
-            ACCOUNT INACTIVE — PAYMENT REQUIRED
+            ACCOUNT INACTIVE
           </h2>
           <p className="text-sm text-textdark/70 mt-1">
-            You have an outstanding fuel balance. Fuel credit is paused until it
-            is settled. Make a payment or arrange one with our team to
-            reactivate your account.
+            Your account is currently inactive. Please contact support to learn
+            more about why your account was deactivated and how to reactivate
+            it.
           </p>
           <Link
-            href="/dashboard/client/support"
+            href="/dashboard/client/support?category=account-deactivated&message=My+account+has+been+deactivated.+Please+let+me+know+why+and+how+I+can+reactivate+it."
             className="mt-3 inline-flex items-center justify-center rounded-lg bg-error text-white font-semibold py-2.5 px-5 hover:bg-error/90"
           >
-            Arrange payment
+            Contact support
           </Link>
         </div>
       </div>
