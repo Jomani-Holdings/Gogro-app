@@ -2,22 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useActionState } from "react";
 import {
   requestPasswordResetCode,
   verifyPasswordResetCode,
   resetPasswordWithCode,
+  type ResetActionState,
 } from "@/app/forgot-password/actions";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
 const labelClass = "block text-sm font-semibold text-textdark mb-1.5";
 
-function Message({
-  state,
-}: {
-  state: { ok: boolean; message?: string; error?: string } | null;
-}) {
+function Message({ state }: { state: ResetActionState | null }) {
   if (!state) return null;
   const ok = state.ok && !state.error;
   return (
@@ -37,19 +33,55 @@ export function ForgotPasswordWizard() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [pending, setPending] = useState(false);
 
-  const [requestState, requestAction, requestPending] = useActionState(
-    requestPasswordResetCode,
-    null
-  );
-  const [verifyState, verifyAction, verifyPending] = useActionState(
-    verifyPasswordResetCode,
-    null
-  );
-  const [resetState, resetAction, resetPending] = useActionState(
-    resetPasswordWithCode,
-    null
-  );
+  const [requestState, setRequestState] = useState<ResetActionState | null>(null);
+  const [verifyState, setVerifyState] = useState<ResetActionState | null>(null);
+  const [resetState, setResetState] = useState<ResetActionState | null>(null);
+
+  async function handleRequest(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setRequestState(null);
+    const result = await requestPasswordResetCode(
+      null,
+      new FormData(e.currentTarget)
+    );
+    setRequestState(result);
+    setPending(false);
+    if (result.ok) setStep(2);
+  }
+
+  async function handleVerify(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setVerifyState(null);
+    const result = await verifyPasswordResetCode(
+      null,
+      new FormData(e.currentTarget)
+    );
+    setVerifyState(result);
+    setPending(false);
+    if (result.ok) setStep(3);
+  }
+
+  async function handleReset(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setResetState(null);
+    const result = await resetPasswordWithCode(
+      null,
+      new FormData(e.currentTarget)
+    );
+    setResetState(result);
+    setPending(false);
+  }
+
+  function backToEmail() {
+    setVerifyState(null);
+    setCode("");
+    setStep(1);
+  }
 
   return (
     <div>
@@ -73,7 +105,7 @@ export function ForgotPasswordWizard() {
       </ol>
 
       {step === 1 ? (
-        <form action={requestAction} className="space-y-5">
+        <form onSubmit={handleRequest} className="space-y-5">
           <Message state={requestState} />
           <div>
             <label htmlFor="email" className={labelClass}>
@@ -93,25 +125,16 @@ export function ForgotPasswordWizard() {
           </div>
           <button
             type="submit"
-            disabled={requestPending}
+            disabled={pending}
             className="w-full inline-flex items-center justify-center rounded-lg bg-orange text-white font-semibold py-3 px-6 transition-colors hover:bg-orange/90 disabled:opacity-60"
           >
-            {requestPending ? "Sending…" : "Send reset code"}
+            {pending ? "Sending…" : "Send reset code"}
           </button>
-          {requestState?.ok ? (
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="w-full inline-flex items-center justify-center rounded-lg border border-navy text-navy font-semibold py-3 px-6 transition-colors hover:bg-navy/5"
-            >
-              I have a code — continue
-            </button>
-          ) : null}
         </form>
       ) : null}
 
       {step === 2 ? (
-        <form action={verifyAction} className="space-y-5">
+        <form onSubmit={handleVerify} className="space-y-5">
           <Message state={verifyState} />
           <input type="hidden" name="email" value={email} />
           <div>
@@ -134,23 +157,14 @@ export function ForgotPasswordWizard() {
           </div>
           <button
             type="submit"
-            disabled={verifyPending}
+            disabled={pending}
             className="w-full inline-flex items-center justify-center rounded-lg bg-orange text-white font-semibold py-3 px-6 transition-colors hover:bg-orange/90 disabled:opacity-60"
           >
-            {verifyPending ? "Verifying…" : "Verify code"}
+            {pending ? "Verifying…" : "Verify code"}
           </button>
-          {verifyState?.ok ? (
-            <button
-              type="button"
-              onClick={() => setStep(3)}
-              className="w-full inline-flex items-center justify-center rounded-lg border border-navy text-navy font-semibold py-3 px-6 transition-colors hover:bg-navy/5"
-            >
-              Continue
-            </button>
-          ) : null}
           <button
             type="button"
-            onClick={() => setStep(1)}
+            onClick={backToEmail}
             className="w-full text-center text-sm text-textdark/60 hover:text-textdark"
           >
             Resend code
@@ -159,7 +173,7 @@ export function ForgotPasswordWizard() {
       ) : null}
 
       {step === 3 ? (
-        <form action={resetAction} className="space-y-5">
+        <form onSubmit={handleReset} className="space-y-5">
           <Message state={resetState} />
           <input type="hidden" name="email" value={email} />
           <input type="hidden" name="code" value={code} />
@@ -195,10 +209,10 @@ export function ForgotPasswordWizard() {
           </div>
           <button
             type="submit"
-            disabled={resetPending}
+            disabled={pending}
             className="w-full inline-flex items-center justify-center rounded-lg bg-orange text-white font-semibold py-3 px-6 transition-colors hover:bg-orange/90 disabled:opacity-60"
           >
-            {resetPending ? "Resetting…" : "Reset password"}
+            {pending ? "Resetting…" : "Reset password"}
           </button>
           {resetState?.ok ? (
             <Link
