@@ -164,7 +164,10 @@ export async function logTransaction(
   }
 
   revalidatePath("/dashboard/admin/drivers");
+  revalidatePath(`/dashboard/admin/drivers/${driverId}`);
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/admin/transactions");
+  revalidatePath("/dashboard/client");
+  revalidatePath("/dashboard/client/finances");
   return { ok: true };
 }
