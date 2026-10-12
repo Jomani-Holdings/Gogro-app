@@ -118,9 +118,6 @@ export async function reviewPaymentProof(
   revalidatePath("/dashboard/admin/transactions");
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/admin/drivers");
-  revalidatePath("/dashboard/client");
-  revalidatePath("/dashboard/client/finances");
-  revalidatePath("/dashboard/client/support");
 
   return { ok: true };
 }

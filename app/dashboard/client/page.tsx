@@ -43,7 +43,7 @@ export default async function ClientHomePage() {
     <div>
       <RequiredActions actions={requiredActions} />
 
-      {!lead && accountProfile?.driver_status === "pending" ? (
+      {!lead ? (
         <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
           <p className="text-textdark/70">
             You haven&apos;t registered your details yet. Get started so our

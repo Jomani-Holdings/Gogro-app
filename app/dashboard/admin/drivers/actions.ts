@@ -29,15 +29,14 @@ function toNumber(value: FormDataEntryValue | null): number | null {
 
 function buildProfilePatch(
   formData: FormData,
-  adminProfileId?: string,
-  statusDefault = "pending"
+  adminProfileId?: string
 ): Record<string, unknown> {
   const arrangementDueDate = clean(formData.get("payment_arrangement_due_date"));
   return {
     full_name: clean(formData.get("full_name")),
     phone: clean(formData.get("phone")),
     email: clean(formData.get("email")),
-    driver_status: String(formData.get("driver_status") ?? statusDefault),
+    driver_status: String(formData.get("driver_status") ?? "pending"),
     car_make_model: clean(formData.get("car_make_model")),
     car_registration: clean(formData.get("car_registration")),
     id_number: clean(formData.get("id_number")),
@@ -143,7 +142,7 @@ export async function createDriver(formData: FormData): Promise<DriverActionResu
   const userId = created.user?.id;
   if (!userId) return { ok: false, error: "Could not create user." };
 
-  const patch = buildProfilePatch(formData, adminProfile.id, "inactive");
+  const patch = buildProfilePatch(formData, adminProfile.id);
   delete patch.email;
 
   const { error } = await admin.from("profiles").upsert(

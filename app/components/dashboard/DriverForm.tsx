@@ -38,7 +38,7 @@ export function DriverForm({
   const [status, setStatus] = useState(
     driver?.driver_status === "suspended"
       ? "inactive"
-      : (driver?.driver_status ?? "inactive")
+      : (driver?.driver_status ?? "pending")
   );
   const [carMakeModel, setCarMakeModel] = useState(driver?.car_make_model ?? "");
   const [carRegistration, setCarRegistration] = useState(
