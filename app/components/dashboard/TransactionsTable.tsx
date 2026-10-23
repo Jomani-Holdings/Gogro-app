@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { Transaction } from "@/lib/data/types";
+import { deleteTransaction } from "@/app/dashboard/admin/transactions/actions";
 
 export type AdminTransactionRow = Transaction & { driver_name: string | null };
 
@@ -27,8 +29,14 @@ export function TransactionsTable({
 }: {
   transactions: AdminTransactionRow[];
 }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
+
+  const [pending, setPending] = useState<AdminTransactionRow | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -43,6 +51,44 @@ export function TransactionsTable({
       ].some((value) => value?.toLowerCase().includes(q));
     });
   }, [transactions, filter, query]);
+
+  function openDelete(tx: AdminTransactionRow) {
+    setPending(tx);
+    setWarning(null);
+    setError(null);
+  }
+
+  function closeModal() {
+    if (submitting) return;
+    setPending(null);
+    setWarning(null);
+    setError(null);
+  }
+
+  async function handleDelete() {
+    if (!pending) return;
+    setSubmitting(true);
+    setError(null);
+
+    const result = await deleteTransaction(pending.id, warning !== null);
+
+    if (result.ok) {
+      setSubmitting(false);
+      setPending(null);
+      setWarning(null);
+      router.refresh();
+      return;
+    }
+
+    if (result.requiresConfirmation && result.warning) {
+      setWarning(result.warning);
+      setSubmitting(false);
+      return;
+    }
+
+    setError(result.error ?? "Something went wrong.");
+    setSubmitting(false);
+  }
 
   return (
     <div>
@@ -95,6 +141,7 @@ export function TransactionsTable({
                   </th>
                   <th className="px-4 py-3 font-medium">Litres</th>
                   <th className="px-4 py-3 font-medium text-right">Amount</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -144,6 +191,15 @@ export function TransactionsTable({
                         </span>
                       ) : null}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openDelete(tx)}
+                        className="rounded-lg border border-error/60 px-3 py-1.5 text-xs font-semibold text-error transition-colors hover:bg-error/10"
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -151,6 +207,65 @@ export function TransactionsTable({
           </div>
         )}
       </div>
+
+      {pending ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-textdark">
+              Delete transaction?
+            </h3>
+            <p className="text-sm text-textdark/70 mt-2">
+              This moves the transaction to the Deleted tab and reverses its
+              balance impact on the driver&apos;s account. You can restore it
+              later.
+            </p>
+
+            <div className="mt-4 rounded-xl bg-offwhite px-4 py-3 text-sm">
+              <p className="font-medium text-textdark">
+                {pending.driver_name ?? "Driver"}
+              </p>
+              <p className="text-textdark/60">
+                {TRANSACTION_LABELS[pending.type] ?? pending.type} ·{" "}
+                {formatMoney(pending.amount, 2)} ·{" "}
+                {formatDateTime(pending.created_at)}
+              </p>
+            </div>
+
+            {warning ? (
+              <div className="mt-4 rounded-xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
+                {warning}
+              </div>
+            ) : null}
+
+            {error ? (
+              <p className="mt-4 text-sm text-error">{error}</p>
+            ) : null}
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={submitting}
+                className="inline-flex items-center justify-center rounded-lg border border-navy px-4 py-2.5 text-sm font-semibold text-navy transition-colors hover:bg-navy/5 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={submitting}
+                className="inline-flex items-center justify-center rounded-lg bg-error px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-error/90 disabled:opacity-60"
+              >
+                {submitting
+                  ? "Deleting…"
+                  : warning
+                    ? "Delete anyway"
+                    : "Delete transaction"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

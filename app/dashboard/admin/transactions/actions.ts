@@ -16,10 +16,77 @@ export type LogTransactionResult = {
   requiresConfirmation?: boolean;
 };
 
+export type TransactionActionResult = {
+  ok: boolean;
+  error?: string;
+  warning?: string;
+  requiresConfirmation?: boolean;
+};
+
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
   const str = String(value).trim();
   return str.length > 0 ? str : null;
+}
+
+const BALANCE_INCREASING_TYPES = new Set([
+  "fuel_issue",
+  "repair_issue",
+  "rental_fee",
+  "penalty_fee",
+  "balance_correction_increase",
+]);
+
+const BALANCE_DECREASING_TYPES = new Set([
+  "fuel_repayment",
+  "repair_repayment",
+  "rental_repayment",
+  "balance_correction_decrease",
+  "reward_credit",
+]);
+
+const CATEGORY_BY_TYPE: Record<
+  string,
+  "fuel" | "repair" | "rental" | "penalty"
+> = {
+  fuel_issue: "fuel",
+  fuel_repayment: "fuel",
+  reward_credit: "fuel",
+  repair_issue: "repair",
+  repair_repayment: "repair",
+  rental_fee: "rental",
+  rental_repayment: "rental",
+  penalty_fee: "penalty",
+  balance_correction_increase: "penalty",
+  balance_correction_decrease: "penalty",
+};
+
+function transactionImpact(type: string, amount: number) {
+  let sign = 0;
+  if (BALANCE_INCREASING_TYPES.has(type)) sign = -1;
+  else if (BALANCE_DECREASING_TYPES.has(type)) sign = 1;
+
+  return {
+    driver: sign * amount,
+    category: CATEGORY_BY_TYPE[type] ?? null,
+    categoryAmount: sign * amount,
+  };
+}
+
+function formatRand(value: number): string {
+  return `R${Math.abs(value).toLocaleString("en-ZA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function revalidateTransactionPaths(driverId: string | null) {
+  revalidatePath("/dashboard/admin/transactions");
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/drivers");
+  if (driverId) revalidatePath(`/dashboard/admin/drivers/${driverId}`);
+  revalidatePath("/dashboard/client");
+  revalidatePath("/dashboard/client/finances");
 }
 
 export async function logTransaction(
@@ -211,5 +278,109 @@ export async function logTransaction(
   revalidatePath("/dashboard/client");
   revalidatePath("/dashboard/client/finances");
   revalidatePath("/dashboard/client/rewards");
+  return { ok: true };
+}
+
+export async function deleteTransaction(
+  transactionId: string,
+  confirmed = false
+): Promise<TransactionActionResult> {
+  const profile = await requireAdmin();
+  if (!transactionId) return { ok: false, error: "Transaction is required." };
+
+  const admin = createAdminClient();
+  const { data: tx, error: txError } = await admin
+    .from("transactions")
+    .select(
+      "id, driver_id, type, amount, reverses_transaction_id, restores_transaction_id"
+    )
+    .eq("id", transactionId)
+    .maybeSingle();
+
+  if (txError) return { ok: false, error: txError.message };
+  if (!tx) return { ok: false, error: "Transaction not found." };
+
+  if (tx.reverses_transaction_id || tx.restores_transaction_id) {
+    return { ok: false, error: "System-generated ledger rows cannot be deleted." };
+  }
+
+  const { data: existingDeletion } = await admin
+    .from("transaction_deletions")
+    .select("id")
+    .eq("transaction_id", transactionId)
+    .is("restored_at", null)
+    .maybeSingle();
+  if (existingDeletion) {
+    return { ok: false, error: "This transaction is already deleted." };
+  }
+
+  const amount = Number(tx.amount ?? 0);
+  const impact = transactionImpact(String(tx.type), amount);
+
+  if (!confirmed && (impact.driver < 0 || impact.categoryAmount < 0)) {
+    const { data: balances } = await admin
+      .from("profiles")
+      .select(
+        "driver_balance, fuel_balance, repair_balance, rental_balance, penalty_balance"
+      )
+      .eq("id", tx.driver_id)
+      .maybeSingle();
+
+    const row = (balances ?? {}) as Record<string, unknown>;
+    const projectedDriver = Number(row.driver_balance ?? 0) + impact.driver;
+    const projectedCategory =
+      impact.category === null
+        ? 0
+        : Number(row[`${impact.category}_balance`] ?? 0) +
+          impact.categoryAmount;
+
+    if (projectedDriver < 0 || projectedCategory < 0) {
+      const parts: string[] = [];
+      if (projectedDriver < 0) {
+        parts.push(`driver balance of ${formatRand(projectedDriver)}`);
+      }
+      if (projectedCategory < 0 && impact.category) {
+        parts.push(`${impact.category} balance of ${formatRand(projectedCategory)}`);
+      }
+      return {
+        ok: false,
+        requiresConfirmation: true,
+        warning: `Deleting this transaction puts the ${parts.join(
+          " and "
+        )} into credit. Continue anyway?`,
+      };
+    }
+  }
+
+  const { error } = await admin.rpc("delete_transaction", {
+    p_transaction_id: transactionId,
+    p_deleted_by: profile.id,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTransactionPaths(String(tx.driver_id));
+  return { ok: true };
+}
+
+export async function restoreTransaction(
+  transactionId: string
+): Promise<TransactionActionResult> {
+  const profile = await requireAdmin();
+  if (!transactionId) return { ok: false, error: "Transaction is required." };
+
+  const admin = createAdminClient();
+  const { data: tx } = await admin
+    .from("transactions")
+    .select("driver_id")
+    .eq("id", transactionId)
+    .maybeSingle();
+
+  const { error } = await admin.rpc("restore_transaction", {
+    p_transaction_id: transactionId,
+    p_restored_by: profile.id,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTransactionPaths(tx?.driver_id ? String(tx.driver_id) : null);
   return { ok: true };
 }

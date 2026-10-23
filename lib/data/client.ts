@@ -95,7 +95,7 @@ export async function getClientDebtBreakdown(
   }
 
   const { data, error } = await supabase
-    .from("transactions")
+    .from("active_transactions")
     .select("type, amount")
     .eq("driver_id", driverId)
     .gte("created_at", cycleStart)
@@ -184,8 +184,6 @@ export async function getClientTransactions(
   if (error) throw new Error(error.message);
 
   return ((data ?? []) as Record<string, unknown>[]).map((row) => {
-    const vehicle = (row.vehicles as { make_model?: string } | null) ?? null;
-    const garage = (row.garages as { name?: string } | null) ?? null;
     return {
       id: String(row.id),
       type: String(row.type) as TransactionType,

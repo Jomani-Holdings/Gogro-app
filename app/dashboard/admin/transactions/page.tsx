@@ -1,8 +1,14 @@
-import { getAdminTransactions } from "@/lib/data/admin";
-import { TransactionsTable } from "@/app/components/dashboard/TransactionsTable";
+import {
+  getAdminTransactions,
+  getAdminDeletedTransactions,
+} from "@/lib/data/admin";
+import { TransactionsTabs } from "@/app/components/dashboard/TransactionsTabs";
 
 export default async function AdminTransactionsPage() {
-  const transactions = await getAdminTransactions(200);
+  const [transactions, deleted] = await Promise.all([
+    getAdminTransactions(200),
+    getAdminDeletedTransactions(200),
+  ]);
 
   return (
     <div>
@@ -14,7 +20,7 @@ export default async function AdminTransactionsPage() {
       </p>
 
       <div className="mt-8">
-        <TransactionsTable transactions={transactions} />
+        <TransactionsTabs transactions={transactions} deleted={deleted} />
       </div>
     </div>
   );
