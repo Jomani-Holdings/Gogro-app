@@ -104,79 +104,62 @@ alter table public.reward_claims
   add column if not exists points_redeemed integer not null default 0
     check (points_redeemed >= 0);
 
--- 7. Trigger: when a repayment row carries points, credit the driver once.
+-- 7. Deletion-aware balance trigger, now also handling points.
+--    Keeps the soft-delete/restore behaviour from migration 040 intact.
 create or replace function public.update_profile_balance_on_transaction()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_ref_type text;
+  v_ref_points integer;
 begin
-  if new.type = 'fuel_issue' then
-    update public.profiles
-    set driver_balance = coalesce(driver_balance, 0) + new.amount,
-        fuel_balance = coalesce(fuel_balance, 0) + new.amount,
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'repair_issue' then
-    update public.profiles
-    set driver_balance = coalesce(driver_balance, 0) + new.amount,
-        repair_balance = coalesce(repair_balance, 0) + new.amount,
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'rental_fee' then
-    update public.profiles
-    set driver_balance = coalesce(driver_balance, 0) + new.amount,
-        rental_balance = coalesce(rental_balance, 0) + new.amount,
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'penalty_fee' then
-    update public.profiles
-    set driver_balance = coalesce(driver_balance, 0) + new.amount,
-        penalty_balance = coalesce(penalty_balance, 0) + new.amount,
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'balance_correction_increase' then
-    update public.profiles
-    set driver_balance = coalesce(driver_balance, 0) + new.amount,
-        penalty_balance = coalesce(penalty_balance, 0) + new.amount,
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'fuel_repayment' then
-    update public.profiles
-    set driver_balance = greatest(coalesce(driver_balance, 0) - new.amount, 0),
-        fuel_balance = greatest(coalesce(fuel_balance, 0) - new.amount, 0),
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'repair_repayment' then
-    update public.profiles
-    set driver_balance = greatest(coalesce(driver_balance, 0) - new.amount, 0),
-        repair_balance = greatest(coalesce(repair_balance, 0) - new.amount, 0),
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'rental_repayment' then
-    update public.profiles
-    set driver_balance = greatest(coalesce(driver_balance, 0) - new.amount, 0),
-        rental_balance = greatest(coalesce(rental_balance, 0) - new.amount, 0),
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'balance_correction_decrease' then
-    update public.profiles
-    set driver_balance = greatest(coalesce(driver_balance, 0) - new.amount, 0),
-        penalty_balance = greatest(coalesce(penalty_balance, 0) - new.amount, 0),
-        updated_at = now()
-    where id = new.driver_id;
-  elsif new.type = 'reward_credit' then
-    -- Intentionally allows a negative balance: a credit the driver can spend.
-    update public.profiles
-    set driver_balance = coalesce(driver_balance, 0) - new.amount,
-        fuel_balance = coalesce(fuel_balance, 0) - new.amount,
-        updated_at = now()
-    where id = new.driver_id;
+  if new.restores_transaction_id is not null then
+    select type::text, points_earned
+      into v_ref_type, v_ref_points
+    from public.transactions
+    where id = new.restores_transaction_id;
+
+    if v_ref_type is not null then
+      perform public.apply_transaction_effect(new.driver_id, v_ref_type, new.amount);
+    end if;
+
+    if coalesce(v_ref_points, 0) > 0 then
+      update public.profiles
+      set points_balance = coalesce(points_balance, 0) + v_ref_points,
+          lifetime_points_earned = coalesce(lifetime_points_earned, 0) + v_ref_points,
+          updated_at = now()
+      where id = new.driver_id;
+    end if;
+
+    return new;
   end if;
 
-  -- Points are independent of the Rand movement and may be attached to any
-  -- repayment row.
+  if new.reverses_transaction_id is not null then
+    select type::text, points_earned
+      into v_ref_type, v_ref_points
+    from public.transactions
+    where id = new.reverses_transaction_id;
+
+    if v_ref_type is not null then
+      perform public.negate_transaction_effect(new.driver_id, v_ref_type, new.amount);
+    end if;
+
+    if coalesce(v_ref_points, 0) > 0 then
+      update public.profiles
+      set points_balance = greatest(coalesce(points_balance, 0) - v_ref_points, 0),
+          lifetime_points_earned = greatest(coalesce(lifetime_points_earned, 0) - v_ref_points, 0),
+          updated_at = now()
+      where id = new.driver_id;
+    end if;
+
+    return new;
+  end if;
+
+  perform public.apply_transaction_effect(new.driver_id, new.type::text, new.amount);
+
   if new.points_earned > 0 then
     update public.profiles
     set points_balance = coalesce(points_balance, 0) + new.points_earned,
@@ -194,6 +177,32 @@ create trigger transactions_update_profile_balance
 after insert on public.transactions
 for each row
 execute function public.update_profile_balance_on_transaction();
+
+-- 7b. Recreate the active ledger view so it exposes points_earned. The view
+--     was created in 040 before this column existed, and `t.*` only expands
+--     at creation time.
+drop view if exists public.active_transactions;
+create view public.active_transactions
+with (security_invoker = true) as
+select
+  t.*,
+  v.make_model as vehicle_name,
+  g.name as garage_name,
+  p.full_name as driver_name
+from public.transactions t
+left join public.vehicles v on v.id = t.vehicle_id
+left join public.garages g on g.id = t.garage_id
+left join public.profiles p on p.id = t.driver_id
+where t.reverses_transaction_id is null
+  and t.restores_transaction_id is null
+  and not exists (
+    select 1
+    from public.transaction_deletions d
+    where d.transaction_id = t.id
+      and d.restored_at is null
+  );
+
+grant select on public.active_transactions to authenticated, service_role;
 
 -- 8. Expose points/streak/referral fields through the dashboard view.
 create or replace view public.driver_account_summary as

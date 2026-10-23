@@ -751,6 +751,7 @@ function mapActiveTransaction(row: Record<string, unknown>): AdminTransaction {
     type: String(row.type) as TransactionType,
     amount: Number(row.amount ?? 0),
     litres: row.litres === null || row.litres === undefined ? null : Number(row.litres),
+    points_earned: Number(row.points_earned ?? 0),
     created_at: String(row.created_at ?? ""),
     driver_name: row.driver_name ? String(row.driver_name) : null,
   };
@@ -764,7 +765,7 @@ export async function getDriverTransactions(
   const { data, error } = await supabase
     .from("active_transactions")
     .select(
-      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, created_at"
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at"
     )
     .eq("driver_id", driverId)
     .order("created_at", { ascending: false })
@@ -916,7 +917,7 @@ export async function getAdminTransactions(
   const { data, error } = await supabase
     .from("active_transactions")
     .select(
-      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, created_at, driver_name"
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at, driver_name"
     )
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -945,7 +946,7 @@ export async function getAdminDeletedTransactions(
        deleted_at,
        deleted_by_profile:profiles!deleted_by(full_name),
        transactions!transaction_id(
-         id, driver_id, vehicle_id, garage_id, type, amount, litres, created_at,
+         id, driver_id, vehicle_id, garage_id, type, amount, litres, points_earned, created_at,
          vehicles(make_model), garages(name), profiles(full_name)
        )`
     )
@@ -1154,7 +1155,7 @@ export async function getAdminRepaymentTransactions(
   let q = supabase
     .from("active_transactions")
     .select(
-      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, created_at, driver_name",
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at, driver_name",
       { count: "exact" }
     )
     .in("type", types)
