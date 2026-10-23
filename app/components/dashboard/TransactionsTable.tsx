@@ -200,15 +200,7 @@ export function TransactionsTable({
                         Delete
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openDelete(tx)}
-                        className="rounded-lg border border-error/60 px-3 py-1.5 text-xs font-semibold text-error transition-colors hover:bg-error/10"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                
                   </tr>
                 ))}
               </tbody>
