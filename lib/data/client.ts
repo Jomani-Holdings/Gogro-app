@@ -89,7 +89,7 @@ export async function getClientDebtBreakdown(
   }
 
   const { data, error } = await supabase
-    .from("transactions")
+    .from("active_transactions")
     .select("type, amount")
     .eq("driver_id", driverId)
     .gte("created_at", cycleStart)
@@ -169,16 +169,16 @@ export async function getClientTransactions(
   const driverId = String(summary.id);
 
   const { data, error } = await supabase
-    .from("transactions")
-    .select("id, type, amount, litres, created_at, vehicles(make_model), garages(name)")
+    .from("active_transactions")
+    .select(
+      "id, type, amount, litres, created_at, vehicle_name, garage_name"
+    )
     .eq("driver_id", driverId)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
 
   return ((data ?? []) as Record<string, unknown>[]).map((row) => {
-    const vehicle = (row.vehicles as { make_model?: string } | null) ?? null;
-    const garage = (row.garages as { name?: string } | null) ?? null;
     return {
       id: String(row.id),
       type: String(row.type) as TransactionType,
@@ -187,8 +187,8 @@ export async function getClientTransactions(
         row.litres === null || row.litres === undefined
           ? null
           : Number(row.litres),
-      vehicle_name: vehicle?.make_model ?? null,
-      garage_name: garage?.name ?? null,
+      vehicle_name: row.vehicle_name ? String(row.vehicle_name) : null,
+      garage_name: row.garage_name ? String(row.garage_name) : null,
       created_at: String(row.created_at ?? ""),
     };
   });

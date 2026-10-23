@@ -488,7 +488,7 @@ export async function getAdminDashboardStats(): Promise<DashboardStats> {
         )
         .neq("role", "admin"),
       supabase
-        .from("transactions")
+        .from("active_transactions")
         .select("amount")
         .in("type", [
           "fuel_repayment",
@@ -496,7 +496,7 @@ export async function getAdminDashboardStats(): Promise<DashboardStats> {
           "rental_repayment",
         ]),
       supabase
-        .from("transactions")
+        .from("active_transactions")
         .select("amount")
         .in("type", [
           "fuel_issue",
@@ -589,7 +589,7 @@ export async function getAdminActiveDriversForDashboard(): Promise<
       .eq("driver_status", "active")
       .order("full_name"),
     supabase
-      .from("transactions")
+      .from("active_transactions")
       .select("driver_id, litres")
       .eq("type", "fuel_issue")
       .gte("created_at", monthStart),
@@ -657,8 +657,8 @@ export async function getFuelUsageByGarage(): Promise<FuelUsageByGarage[]> {
   if (!cycleStart || !cycleEnd) return [];
 
   const { data, error } = await supabase
-    .from("transactions")
-    .select("garage_id, amount, litres, garages(name)")
+    .from("active_transactions")
+    .select("garage_id, amount, litres, garage_name")
     .eq("type", "fuel_issue")
     .gte("created_at", cycleStart)
     .lt("created_at", cycleEnd);
@@ -672,11 +672,11 @@ export async function getFuelUsageByGarage(): Promise<FuelUsageByGarage[]> {
 
   for (const t of (data ?? []) as Record<string, unknown>[]) {
     const garageId = t.garage_id ? String(t.garage_id) : null;
-    const garage = (t.garages as { name?: string } | null) ?? null;
+    const garageName = t.garage_name ? String(t.garage_name) : null;
     const key = garageId ?? "unassigned";
     const entry = byGarage.get(key) ?? {
       garage_id: garageId,
-      garage_name: garage?.name ?? "Unassigned",
+      garage_name: garageName ?? "Unassigned",
       litres: 0,
       amount: 0,
     };
@@ -729,20 +729,38 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
   };
 }
 
+function mapActiveTransaction(row: Record<string, unknown>): AdminTransaction {
+  return {
+    id: String(row.id),
+    driver_id: String(row.driver_id),
+    vehicle_id: row.vehicle_id ? String(row.vehicle_id) : null,
+    garage_id: row.garage_id ? String(row.garage_id) : null,
+    vehicle_name: row.vehicle_name ? String(row.vehicle_name) : null,
+    garage_name: row.garage_name ? String(row.garage_name) : null,
+    type: String(row.type) as TransactionType,
+    amount: Number(row.amount ?? 0),
+    litres: row.litres === null || row.litres === undefined ? null : Number(row.litres),
+    created_at: String(row.created_at ?? ""),
+    driver_name: row.driver_name ? String(row.driver_name) : null,
+  };
+}
+
 export async function getDriverTransactions(
   driverId: string,
   limit = 20
 ): Promise<Transaction[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("transactions")
-    .select("*, vehicles(make_model), garages(name)")
+    .from("active_transactions")
+    .select(
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, created_at"
+    )
     .eq("driver_id", driverId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw new Error(error.message);
-  return ((data ?? []) as Record<string, unknown>[]).map(mapTransaction);
+  return ((data ?? []) as Record<string, unknown>[]).map(mapActiveTransaction);
 }
 
 export type AdminRepairDriver = AdminDriver & {
@@ -763,7 +781,7 @@ export async function getAdminRepairDrivers(): Promise<AdminRepairDriver[]> {
       .gt("repair_balance", 0)
       .order("created_at", { ascending: false }),
     supabase
-      .from("transactions")
+      .from("active_transactions")
       .select("driver_id, type, amount, created_at")
       .in("type", ["repair_issue", "repair_repayment"]),
   ]);
@@ -839,20 +857,65 @@ export async function getAdminTransactions(
 ): Promise<AdminTransaction[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("transactions")
+    .from("active_transactions")
     .select(
-      "*, vehicles(make_model), garages(name), profiles(full_name)"
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, created_at, driver_name"
     )
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as Record<string, unknown>[]).map((row) => {
-    const base = mapTransaction(row);
-    const driver = (row.profiles as { full_name?: string | null } | null) ?? null;
-    return { ...base, driver_name: driver?.full_name ?? null };
-  });
+  return ((data ?? []) as Record<string, unknown>[]).map(mapActiveTransaction);
+}
+
+export type AdminDeletedTransaction = {
+  id: string;
+  transaction: AdminTransaction;
+  deleted_at: string;
+  deleted_by_name: string | null;
+};
+
+export async function getAdminDeletedTransactions(
+  limit = 200
+): Promise<AdminDeletedTransaction[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("transaction_deletions")
+    .select(
+      `id,
+       transaction_id,
+       deleted_at,
+       deleted_by_profile:profiles!deleted_by(full_name),
+       transactions!transaction_id(
+         id, driver_id, vehicle_id, garage_id, type, amount, litres, created_at,
+         vehicles(make_model), garages(name), profiles(full_name)
+       )`
+    )
+    .is("restored_at", null)
+    .order("deleted_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Record<string, unknown>[])
+    .map((row) => {
+      const tx = (row.transactions as Record<string, unknown> | null) ?? null;
+      if (!tx) return null;
+      const base = mapTransaction(tx);
+      const driver =
+        (tx.profiles as { full_name?: string | null } | null) ?? null;
+      const deletedBy =
+        (row.deleted_by_profile as { full_name?: string | null } | null) ??
+        null;
+      return {
+        id: String(row.id),
+        transaction: { ...base, driver_name: driver?.full_name ?? null },
+        deleted_at: String(row.deleted_at),
+        deleted_by_name: deletedBy?.full_name ?? null,
+      } satisfies AdminDeletedTransaction;
+    })
+    .filter((row): row is AdminDeletedTransaction => row !== null);
 }
 
 export type Paginated<T> = {
@@ -1032,10 +1095,11 @@ export async function getAdminRepaymentTransactions(
   }
 
   let q = supabase
-    .from("transactions")
-    .select("*, vehicles(make_model), garages(name), profiles(full_name)", {
-      count: "exact",
-    })
+    .from("active_transactions")
+    .select(
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, created_at, driver_name",
+      { count: "exact" }
+    )
     .in("type", types)
     .order("created_at", { ascending: false })
     .range(rangeFrom, rangeTo);
@@ -1047,12 +1111,9 @@ export async function getAdminRepaymentTransactions(
   const { data, error, count } = await q;
   if (error) throw new Error(error.message);
 
-  const rows = ((data ?? []) as Record<string, unknown>[]).map((row) => {
-    const base = mapTransaction(row);
-    const driver =
-      (row.profiles as { full_name?: string | null } | null) ?? null;
-    return { ...base, driver_name: driver?.full_name ?? null };
-  });
+  const rows = ((data ?? []) as Record<string, unknown>[]).map(
+    mapActiveTransaction
+  );
 
   const total = count ?? 0;
   return {
