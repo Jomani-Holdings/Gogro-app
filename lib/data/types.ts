@@ -40,6 +40,19 @@ export type VehicleStatus = "active" | "maintenance" | "off_road";
 
 export type VehicleOwnership = "own" | "rental" | "managed";
 
+export type VehicleCategory =
+  | "uber_go"
+  | "uber_black"
+  | "delivery"
+  | "other";
+
+export const VEHICLE_CATEGORIES: { value: VehicleCategory; label: string }[] = [
+  { value: "uber_go", label: "Uber Go / Similar" },
+  { value: "uber_black", label: "Uber Black / Premium" },
+  { value: "delivery", label: "Delivery / Bakkie / Van" },
+  { value: "other", label: "Other" },
+];
+
 export type Vehicle = {
   id: string;
   make_model: string;
@@ -47,7 +60,7 @@ export type Vehicle = {
   driver_id: string | null;
   driver_name: string | null;
   owner_name: string | null;
-  category: string | null;
+  category: VehicleCategory | null;
   ownership_type: VehicleOwnership;
   weekly_rental: number | null;
   status: VehicleStatus;
@@ -63,6 +76,7 @@ export type TransactionType =
   | "fuel_repayment"
   | "repair_repayment"
   | "rental_repayment"
+  | "reward_credit"
   | "opening_balance"
   | "balance_correction_increase"
   | "balance_correction_decrease";
@@ -79,6 +93,7 @@ export const TRANSACTION_TYPES: {
   { value: "fuel_repayment", label: "Fuel Repayment", affectsLitres: false },
   { value: "repair_repayment", label: "Repair Repayment", affectsLitres: false },
   { value: "rental_repayment", label: "Rental Repayment", affectsLitres: false },
+  { value: "reward_credit", label: "Reward Credit", affectsLitres: false },
   { value: "opening_balance", label: "Opening Balance", affectsLitres: false },
   { value: "balance_correction_increase", label: "Balance Correction (+)", affectsLitres: false },
   { value: "balance_correction_decrease", label: "Balance Correction (−)", affectsLitres: false },
@@ -92,6 +107,7 @@ export const TRANSACTION_LABELS: Record<TransactionType, string> = {
   fuel_repayment: "Fuel Repayment",
   repair_repayment: "Repair Repayment",
   rental_repayment: "Rental Repayment",
+  reward_credit: "Reward Credit",
   opening_balance: "Opening Balance",
   balance_correction_increase: "Balance Correction (+)",
   balance_correction_decrease: "Balance Correction (−)",
@@ -107,6 +123,7 @@ export type Transaction = {
   type: TransactionType;
   amount: number;
   litres: number | null;
+  points_earned: number;
   created_at: string;
 };
 
@@ -341,4 +358,172 @@ export type Document = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type MembershipTier = "standard" | "gold" | "platinum";
+
+export const MEMBERSHIP_TIERS: { value: MembershipTier; label: string }[] = [
+  { value: "standard", label: "Standard" },
+  { value: "gold", label: "Gold" },
+  { value: "platinum", label: "Platinum" },
+];
+
+export type RewardStatus = "draft" | "scheduled" | "archived";
+
+export type RewardState =
+  | "draft"
+  | "scheduled"
+  | "teaser"
+  | "published"
+  | "expired"
+  | "archived";
+
+export type RewardCategory =
+  | "perk"
+  | "programme_fuel"
+  | "programme_referral"
+  | "programme_repair";
+
+export const REWARD_CATEGORIES: { value: RewardCategory; label: string }[] = [
+  { value: "perk", label: "Perk / Giveaway" },
+  { value: "programme_fuel", label: "Programme — Fuel" },
+  { value: "programme_referral", label: "Programme — Referral" },
+  { value: "programme_repair", label: "Programme — Repair" },
+];
+
+export type RewardAudience =
+  | "all_drivers"
+  | "garage_specific"
+  | "tier_specific";
+
+export const REWARD_AUDIENCES: { value: RewardAudience; label: string }[] = [
+  { value: "all_drivers", label: "All drivers" },
+  { value: "garage_specific", label: "Specific garage" },
+  { value: "tier_specific", label: "Specific membership tier" },
+];
+
+export type PointRewardType =
+  | "fuel_credit"
+  | "cash_reward"
+  | "tyre_voucher"
+  | "service_voucher";
+
+export const POINT_REWARD_TYPES: {
+  value: PointRewardType;
+  label: string;
+}[] = [
+  { value: "fuel_credit", label: "Fuel Credit" },
+  { value: "cash_reward", label: "Cash Reward" },
+  { value: "tyre_voucher", label: "Tyre Voucher" },
+  { value: "service_voucher", label: "Service Voucher" },
+];
+
+export type Reward = {
+  id: string;
+  status: RewardStatus;
+  reward_category: RewardCategory;
+  title: string | null;
+  description: string | null;
+  image_path: string | null;
+  teaser_title: string;
+  teaser_description: string | null;
+  teaser_image_path: string | null;
+  audience: RewardAudience;
+  garage_id: string | null;
+  garage_name: string | null;
+  membership_tier: MembershipTier | null;
+  value_amount: number | null;
+  point_cost: number | null;
+  point_reward_type: PointRewardType | null;
+  max_claims: number | null;
+  per_driver_limit: number;
+  teaser_at: string | null;
+  publish_at: string;
+  expires_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientReward = {
+  id: string;
+  state: "teaser" | "published";
+  reward_category: RewardCategory;
+  title: string | null;
+  description: string | null;
+  image_path: string | null;
+  teaser_title: string;
+  teaser_description: string | null;
+  teaser_image_path: string | null;
+  audience: RewardAudience;
+  garage_id: string | null;
+  garage_name: string | null;
+  membership_tier: MembershipTier | null;
+  value_amount: number | null;
+  publish_at: string;
+  expires_at: string | null;
+  sort_order: number;
+};
+
+export type RewardClaimStatus = "pending" | "redeemed" | "rejected";
+
+export type RewardClaim = {
+  id: string;
+  reward_id: string;
+  reward_title: string | null;
+  driver_id: string;
+  driver_name: string | null;
+  status: RewardClaimStatus;
+  voucher_code: string | null;
+  points_redeemed: number;
+  redeemed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DriverReferralStatus =
+  | "pending"
+  | "registered"
+  | "probation"
+  | "qualified"
+  | "rewarded";
+
+export type DriverReferral = {
+  id: string;
+  referrer_id: string;
+  referrer_name: string | null;
+  referred_id: string | null;
+  referred_name: string | null;
+  referred_email: string | null;
+  status: DriverReferralStatus;
+  registered_at: string | null;
+  probation_ends_at: string | null;
+  qualified_at: string | null;
+  reward_processed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientReferral = {
+  id: string;
+  referred_id: string | null;
+  referred_name: string | null;
+  referred_email: string | null;
+  referred_avatar_url: string | null;
+  status: DriverReferralStatus;
+  weeks_paid: number;
+  points_earned: number;
+  last_payment_at: string | null;
+  created_at: string;
+};
+
+export type ClientPointsContext = {
+  driver_id: string;
+  full_name: string | null;
+  points_balance: number;
+  lifetime_points_earned: number;
+  lifetime_points_redeemed: number;
+  current_streak: number;
+  referral_code: string | null;
 };
