@@ -1,6 +1,7 @@
 export const GALLERY_BUCKET = "gallery";
 export const DOCUMENTS_BUCKET = "documents";
 export const AVATARS_BUCKET = "avatars";
+export const REWARDS_BUCKET = "rewards";
 
 export const MAX_GARAGE_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 export const MAX_DOCUMENT_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -9,6 +10,7 @@ export const MAX_GALLERY_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export const MAX_CONTRACT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export const MAX_AVATAR_SIZE = 2 * 1024 * 1024; // 2MB
 export const MAX_PAYMENT_PROOF_SIZE = 5 * 1024 * 1024; // 5MB
+export const MAX_REWARD_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export function mediaUrl(storagePath: string): string {
   return `/api/media/${storagePath}`;

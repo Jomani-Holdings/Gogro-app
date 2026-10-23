@@ -36,6 +36,8 @@ export async function logTransaction(
   const createdRaw = clean(formData.get("created_at"));
   const overrideAction = clean(formData.get("override_action"));
   const skipNotification = clean(formData.get("skip_notification")) === "true";
+  const pointsRaw = clean(formData.get("points_earned"));
+  const onTime = clean(formData.get("on_time")) === "true";
 
   if (!driverId) return { ok: false, error: "Driver is required." };
   if (!type || !TRANSACTION_TYPES.some((t) => t.value === type)) {
@@ -43,6 +45,18 @@ export async function logTransaction(
   }
   if (!Number.isFinite(amount) || amount <= 0) {
     return { ok: false, error: "Amount must be greater than zero." };
+  }
+
+  let pointsEarned = 0;
+  if (pointsRaw) {
+    const n = Number(pointsRaw);
+    if (!Number.isInteger(n) || n < 0) {
+      return {
+        ok: false,
+        error: "Points earned must be a whole number of 0 or more.",
+      };
+    }
+    pointsEarned = n;
   }
 
   let litres: number | null = null;
@@ -98,6 +112,7 @@ export async function logTransaction(
     type,
     amount,
     litres,
+    points_earned: pointsEarned,
     created_at,
   };
 
@@ -107,6 +122,29 @@ export async function logTransaction(
 
   const { error } = await admin.from("transactions").insert(insertPayload);
   if (error) return { ok: false, error: error.message };
+
+  // Streaks are intentionally manual: the admin ticks "on-time" when logging
+  // the repayment.
+  const REPAYMENT_TYPES = new Set([
+    "fuel_repayment",
+    "repair_repayment",
+    "rental_repayment",
+  ]);
+  if (onTime && REPAYMENT_TYPES.has(type)) {
+    const { data: streakProfile } = await admin
+      .from("profiles")
+      .select("current_streak")
+      .eq("id", driverId)
+      .maybeSingle();
+    const nextStreak = Number(streakProfile?.current_streak ?? 0) + 1;
+    await admin
+      .from("profiles")
+      .update({
+        current_streak: nextStreak,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", driverId);
+  }
 
   const typeLabel =
     TRANSACTION_TYPES.find((t) => t.value === type)?.label ?? type;
@@ -121,8 +159,10 @@ export async function logTransaction(
       body: `${typeLabel} of R${amount.toLocaleString("en-ZA", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      })} has been added to your account.`,
-      link: "/dashboard/client",
+      })} has been added to your account.${
+        pointsEarned > 0 ? ` +${pointsEarned} reward points earned.` : ""
+      }`,
+      link: pointsEarned > 0 ? "/dashboard/client/rewards" : "/dashboard/client",
       type: "transaction",
     });
   }
@@ -167,7 +207,9 @@ export async function logTransaction(
   revalidatePath(`/dashboard/admin/drivers/${driverId}`);
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/admin/transactions");
+  revalidatePath("/dashboard/admin/rewards");
   revalidatePath("/dashboard/client");
   revalidatePath("/dashboard/client/finances");
+  revalidatePath("/dashboard/client/rewards");
   return { ok: true };
 }

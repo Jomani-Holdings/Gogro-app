@@ -3,7 +3,11 @@ import { PageHero } from "@/app/components/PageHero";
 import { CTASection } from "@/app/components/CTASection";
 import { getWhatsAppLink } from "@/app/lib/site-config";
 import { resolveMetadata } from "@/lib/data/seo";
+import { getPublicRewards } from "@/lib/data/rewards";
+import { RewardsGrid } from "@/app/components/rewards/RewardsGrid";
 import { Fuel, Wallet, Wrench } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   return resolveMetadata("/rewards");
@@ -30,13 +34,32 @@ const benefits = [
   },
 ];
 
-export default function RewardsPage() {
+export default async function RewardsPage() {
+  const rewards = await getPublicRewards();
+
   return (
     <>
       <PageHero
         title="Driver Rewards & Benefits"
         subtitle="Good account management unlocks more."
       />
+
+      <section className="container mx-auto px-6 md:px-12 pt-16 md:pt-20 max-w-5xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange">
+          Live now
+        </p>
+        <h2 className="text-3xl md:text-4xl font-bold text-textdark mt-2">
+          Rewards &amp; drops
+        </h2>
+        <p className="text-lg text-textdark/70 mt-3 max-w-2xl">
+          Mystery perks, garage giveaways and seasonal drops. Keep an eye on
+          the countdown — the reveal happens right here.
+        </p>
+
+        <div className="mt-8">
+          <RewardsGrid rewards={rewards} />
+        </div>
+      </section>
 
       <section className="container mx-auto px-6 md:px-12 py-16 md:py-20 max-w-4xl">
         <h2 className="text-3xl md:text-4xl font-bold text-textdark">

@@ -94,6 +94,11 @@ export type AdminDriver = {
   fuel_code: string | null;
   fuel_garage_id: string | null;
   fuel_garage_name: string | null;
+  points_balance: number;
+  lifetime_points_earned: number;
+  lifetime_points_redeemed: number;
+  current_streak: number;
+  referral_code: string | null;
   created_at: string;
 };
 
@@ -264,6 +269,11 @@ function mapAdminDriver(row: Record<string, unknown>): AdminDriver {
     fuel_garage_name: row.fuel_garage_name
       ? String(row.fuel_garage_name)
       : null,
+    points_balance: Number(row.points_balance ?? 0),
+    lifetime_points_earned: Number(row.lifetime_points_earned ?? 0),
+    lifetime_points_redeemed: Number(row.lifetime_points_redeemed ?? 0),
+    current_streak: Number(row.current_streak ?? 0),
+    referral_code: row.referral_code ? String(row.referral_code) : null,
     created_at: String(row.created_at ?? ""),
   };
 }
@@ -429,7 +439,7 @@ function mapVehicle(row: Record<string, unknown>): Vehicle {
     driver_id: row.driver_id ? String(row.driver_id) : null,
     driver_name: driver?.full_name ?? null,
     owner_name: row.owner_name ? String(row.owner_name) : null,
-    category: row.category ? String(row.category) : null,
+    category: (row.category ? String(row.category) : null) as Vehicle["category"],
     ownership_type: (row.ownership_type
       ? String(row.ownership_type)
       : "managed") as Vehicle["ownership_type"],
@@ -725,6 +735,7 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
     type: String(row.type) as TransactionType,
     amount: Number(row.amount ?? 0),
     litres: row.litres === null || row.litres === undefined ? null : Number(row.litres),
+    points_earned: Number(row.points_earned ?? 0),
     created_at: String(row.created_at ?? ""),
   };
 }
@@ -792,6 +803,52 @@ export async function getAdminRepairDrivers(): Promise<AdminRepairDriver[]> {
       total_repair_repaid: s.repaid,
       net_repair_position: outstanding,
       last_repair_at: s.last,
+    };
+  });
+}
+
+export type AdminDriverReferral = {
+  id: string;
+  referred_id: string | null;
+  referred_name: string | null;
+  referred_email: string | null;
+  status: string;
+  weeks_paid: number;
+  points_earned: number;
+  last_payment_at: string | null;
+  created_at: string;
+};
+
+export async function getAdminDriverReferrals(
+  driverId: string
+): Promise<AdminDriverReferral[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("driver_referrals")
+    .select("*, profiles!referred_id(full_name, email)")
+    .eq("referrer_id", driverId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => {
+    const referred =
+      (row.profiles as { full_name?: string | null; email?: string | null } | null) ??
+      null;
+    return {
+      id: String(row.id),
+      referred_id: row.referred_id ? String(row.referred_id) : null,
+      referred_name: referred?.full_name ?? null,
+      referred_email: row.referred_email
+        ? String(row.referred_email)
+        : referred?.email ?? null,
+      status: String(row.status ?? "pending"),
+      weeks_paid: Number(row.weeks_paid ?? 0),
+      points_earned: Number(row.points_earned ?? 0),
+      last_payment_at: row.last_payment_at
+        ? String(row.last_payment_at)
+        : null,
+      created_at: String(row.created_at ?? ""),
     };
   });
 }

@@ -6,14 +6,17 @@ import {
   getAdminLeadByUserId,
   getAdminDriverVehicles,
   getDriverTransactions,
+  getAdminDriverReferrals,
 } from "@/lib/data/admin";
 import { getDocumentsForUser } from "@/lib/data/documents";
-import { formatMoney, formatDateTime } from "@/lib/utils";
+import { formatMoney, formatDateTime, formatPoints, formatBalance } from "@/lib/utils";
 import { DriverForm } from "@/app/components/dashboard/DriverForm";
 import { DocumentsManager } from "@/app/components/dashboard/DocumentsManager";
 import { Accordion } from "@/app/components/dashboard/Accordion";
 import { LogTransactionModal } from "@/app/components/dashboard/LogTransactionModal";
 import { SuspendDriverButton } from "@/app/components/dashboard/SuspendDriverButton";
+import { ResetStreakButton } from "@/app/components/dashboard/ResetStreakButton";
+import { ReferralAwardModal } from "@/app/components/dashboard/ReferralAwardModal";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 
 const statusStyles: Record<string, string> = {
@@ -28,6 +31,22 @@ const statusLabels: Record<string, string> = {
   active: "Active",
   suspended: "Suspended",
   inactive: "Inactive",
+};
+
+const referralStatusStyles: Record<string, string> = {
+  pending: "bg-grey/40 text-textdark",
+  registered: "bg-navy/10 text-navy",
+  probation: "bg-yellow/20 text-textdark",
+  qualified: "bg-success/10 text-success",
+  rewarded: "bg-success/10 text-success",
+};
+
+const referralStatusLabels: Record<string, string> = {
+  pending: "Pending",
+  registered: "Registered",
+  probation: "Probation",
+  qualified: "On Time",
+  rewarded: "Rewarded",
 };
 
 function Field({ label, value }: { label: string; value: string | null }) {
@@ -57,13 +76,17 @@ export default async function AdminDriverProfilePage({
   const driver = await getAdminDriver(id);
   if (!driver) notFound();
 
-  const [garages, documents, lead, vehicles, transactions] =
+  const driverBalance = formatBalance(driver.driver_balance);
+  const fuelBalance = formatBalance(driver.fuel_balance);
+
+  const [garages, documents, lead, vehicles, transactions, referrals] =
     await Promise.all([
       getAdminGarageOptions(),
       getDocumentsForUser(driver.user_id),
       getAdminLeadByUserId(driver.user_id),
       getAdminDriverVehicles(driver.id),
       getDriverTransactions(driver.id, 10),
+      getAdminDriverReferrals(driver.id),
     ]);
 
   return (
@@ -113,6 +136,12 @@ export default async function AdminDriverProfilePage({
             profileId={driver.id}
             driverStatus={driver.driver_status}
           />
+          {driver.current_streak > 0 ? (
+            <ResetStreakButton
+              driverId={driver.id}
+              streak={driver.current_streak}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -148,12 +177,12 @@ export default async function AdminDriverProfilePage({
             value={formatMoney(driver.weekly_fuel_available, 2)}
           />
           <Field
-            label="Driver Balance"
-            value={formatMoney(driver.driver_balance, 2)}
+            label={driverBalance.isCredit ? "Driver Credit" : "Driver Balance"}
+            value={driverBalance.text}
           />
           <Field
-            label="Fuel Balance"
-            value={formatMoney(driver.fuel_balance, 2)}
+            label={fuelBalance.isCredit ? "Fuel Credit" : "Fuel Balance"}
+            value={fuelBalance.text}
           />
           <Field
             label="Repair Balance"
@@ -190,6 +219,25 @@ export default async function AdminDriverProfilePage({
           <Field label="Fuel Code" value={driver.fuel_code} />
           <Field label="Fuel Garage" value={driver.fuel_garage_name} />
           <Field label="Suspended" value={driver.suspended ? "Yes" : "No"} />
+          <Field
+            label="Points Balance"
+            value={formatPoints(driver.points_balance)}
+          />
+          <Field
+            label="Lifetime Points Earned"
+            value={formatPoints(driver.lifetime_points_earned)}
+          />
+          <Field
+            label="Lifetime Points Redeemed"
+            value={formatPoints(driver.lifetime_points_redeemed)}
+          />
+          <Field
+            label="Current Streak"
+            value={`${driver.current_streak} week${
+              driver.current_streak === 1 ? "" : "s"
+            }`}
+          />
+          <Field label="Referral Code" value={driver.referral_code} />
         </dl>
       </div>
 
@@ -252,6 +300,92 @@ export default async function AdminDriverProfilePage({
       </section>
 
       <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-navy">Referrals</h2>
+            <p className="text-sm text-textdark/50 mt-1">
+              Drivers referred by {driver.full_name ?? "this driver"}.
+            </p>
+          </div>
+          <span className="rounded-full bg-offwhite px-3 py-1 text-xs font-semibold text-textdark/60">
+            {referrals.length} referral{referrals.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {referrals.length === 0 ? (
+          <p className="text-textdark/50 text-sm">No referrals yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-grey/40 text-left text-textdark/60">
+                  <th className="px-3 py-2 font-medium">Referred Driver</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Weeks Paid</th>
+                  <th className="px-3 py-2 font-medium">Points Earned</th>
+                  <th className="hidden md:table-cell px-3 py-2 font-medium">
+                    Last Payment
+                  </th>
+                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {referrals.map((referral) => (
+                  <tr
+                    key={referral.id}
+                    className="border-b border-grey/20 last:border-0"
+                  >
+                    <td className="px-3 py-3">
+                      <p className="font-medium text-textdark">
+                        {referral.referred_name ??
+                          referral.referred_email ??
+                          "Invited driver"}
+                      </p>
+                      {referral.referred_email && referral.referred_name ? (
+                        <p className="text-xs text-textdark/50">
+                          {referral.referred_email}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          referralStatusStyles[referral.status] ??
+                          "bg-grey/40 text-textdark"
+                        }`}
+                      >
+                        {referralStatusLabels[referral.status] ??
+                          referral.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-textdark/70">
+                      {referral.weeks_paid}
+                    </td>
+                    <td className="px-3 py-3 text-textdark/70">
+                      {formatPoints(referral.points_earned)}
+                    </td>
+                    <td className="hidden md:table-cell px-3 py-3 text-textdark/60">
+                      {referral.last_payment_at
+                        ? formatDateTime(referral.last_payment_at)
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <ReferralAwardModal
+                        referralId={referral.id}
+                        driverName={
+                          referral.referred_name ?? referral.referred_email
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">
         <h2 className="text-lg font-semibold text-navy mb-4">
           Recent Transactions
         </h2>
@@ -299,6 +433,11 @@ export default async function AdminDriverProfilePage({
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-textdark">
                       {formatMoney(tx.amount, 2)}
+                      {tx.points_earned > 0 ? (
+                        <span className="block text-xs font-semibold text-success">
+                          +{tx.points_earned} pts
+                        </span>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

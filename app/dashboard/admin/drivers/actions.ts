@@ -228,3 +228,100 @@ export async function setDriverStatus(
   revalidatePath(`/dashboard/admin/drivers/${id}`);
   return { ok: true };
 }
+
+export async function resetStreak(id: string): Promise<DriverActionResult> {
+  await requireAdmin();
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from("profiles")
+    .update({
+      current_streak: 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard/admin/drivers");
+  revalidatePath(`/dashboard/admin/drivers/${id}`);
+  revalidatePath("/dashboard/client/rewards");
+  return { ok: true };
+}
+
+export async function awardReferralPoints(
+  referralId: string,
+  points: number
+): Promise<DriverActionResult> {
+  await requireAdmin();
+
+  if (!Number.isInteger(points) || points <= 0) {
+    return {
+      ok: false,
+      error: "Enter a whole number of points greater than zero.",
+    };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: referral, error: referralError } = await admin
+    .from("driver_referrals")
+    .select("id, referrer_id, points_earned")
+    .eq("id", referralId)
+    .maybeSingle();
+
+  if (referralError || !referral) {
+    return {
+      ok: false,
+      error: referralError?.message ?? "Referral not found.",
+    };
+  }
+
+  const referrerId = String(referral.referrer_id);
+
+  const { error: updateReferralError } = await admin
+    .from("driver_referrals")
+    .update({
+      points_earned: Number(referral.points_earned ?? 0) + points,
+      status: "rewarded",
+      reward_processed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", referralId);
+
+  if (updateReferralError) {
+    return { ok: false, error: updateReferralError.message };
+  }
+
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("points_balance, lifetime_points_earned")
+    .eq("id", referrerId)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return {
+      ok: false,
+      error: profileError?.message ?? "Referrer not found.",
+    };
+  }
+
+  const { error: updateProfileError } = await admin
+    .from("profiles")
+    .update({
+      points_balance: Number(profile.points_balance ?? 0) + points,
+      lifetime_points_earned:
+        Number(profile.lifetime_points_earned ?? 0) + points,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", referrerId);
+
+  if (updateProfileError) {
+    return { ok: false, error: updateProfileError.message };
+  }
+
+  revalidatePath("/dashboard/admin/drivers");
+  revalidatePath(`/dashboard/admin/drivers/${referrerId}`);
+  revalidatePath("/dashboard/client/rewards");
+  return { ok: true };
+}

@@ -3,7 +3,7 @@ import {
   getClientTransactions,
   getClientBalances,
 } from "@/lib/data/client";
-import { formatMoney, formatDateTime } from "@/lib/utils";
+import { formatMoney, formatDateTime, formatBalance } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 
 const typeStyles: Record<string, string> = {
@@ -11,6 +11,7 @@ const typeStyles: Record<string, string> = {
   repair_issue: "bg-yellow/20 text-textdark",
   fuel_repayment: "bg-success/10 text-success",
   repair_repayment: "bg-success/10 text-success",
+  reward_credit: "bg-success/10 text-success",
   rental_fee: "bg-navy/10 text-navy",
   rental_repayment: "bg-success/10 text-success",
   penalty_fee: "bg-error/10 text-error",
@@ -25,6 +26,8 @@ export default async function ClientLedgerPage() {
     getClientTransactions(profile.user_id),
     getClientBalances(profile.user_id),
   ]);
+
+  const currentBalance = formatBalance(balances?.driver_balance ?? 0);
 
   return (
     <div>
@@ -43,36 +46,58 @@ export default async function ClientLedgerPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-medium text-textdark/50">
-              Current Balance
+              {currentBalance.isCredit ? "Account Credit" : "Current Balance"}
             </p>
-            <p className="text-3xl font-bold text-textdark mt-1">
-              {formatMoney(balances?.driver_balance ?? 0, 2)}
+            <p
+              className={`text-3xl font-bold mt-1 ${
+                currentBalance.isCredit ? "text-success" : "text-textdark"
+              }`}
+            >
+              {currentBalance.text}
             </p>
+            {currentBalance.isCredit ? (
+              <p className="text-xs text-success mt-1">
+                Available to spend
+              </p>
+            ) : null}
           </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
           {[
-            { label: "Fuel", amount: balances?.fuel_balance ?? 0 },
-            { label: "Repair", amount: balances?.repair_balance ?? 0 },
-            { label: "Rental", amount: balances?.rental_balance ?? 0 },
+            { key: "fuel", label: "Fuel", amount: balances?.fuel_balance ?? 0 },
+            { key: "repair", label: "Repair", amount: balances?.repair_balance ?? 0 },
+            { key: "rental", label: "Rental", amount: balances?.rental_balance ?? 0 },
             {
+              key: "penalties",
               label: "Penalties & Adjustments",
               amount: balances?.penalty_balance ?? 0,
             },
-          ].map((bucket) => (
-            <div
-              key={bucket.label}
-              className="rounded-xl border border-grey/40 bg-offwhite px-4 py-3"
-            >
-              <p className="text-xs font-medium text-textdark/50">
-                {bucket.label}
-              </p>
-              <p className="text-lg font-semibold text-textdark mt-0.5">
-                {formatMoney(bucket.amount, 2)}
-              </p>
-            </div>
-          ))}
+          ].map((bucket) => {
+            const balance = formatBalance(bucket.amount);
+            return (
+              <div
+                key={bucket.key}
+                className="rounded-xl border border-grey/40 bg-offwhite px-4 py-3"
+              >
+                <p className="text-xs font-medium text-textdark/50">
+                  {balance.isCredit ? `${bucket.label} Credit` : bucket.label}
+                </p>
+                <p
+                  className={`text-lg font-semibold mt-0.5 ${
+                    balance.isCredit ? "text-success" : "text-textdark"
+                  }`}
+                >
+                  {balance.text}
+                </p>
+                {balance.isCredit ? (
+                  <p className="text-xs text-success mt-0.5">
+                    Available credit
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -127,6 +152,11 @@ export default async function ClientLedgerPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-textdark">
                       {formatMoney(tx.amount, 2)}
+                      {tx.points_earned > 0 ? (
+                        <span className="block text-xs font-semibold text-success">
+                          +{tx.points_earned} pts
+                        </span>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

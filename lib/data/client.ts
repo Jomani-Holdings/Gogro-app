@@ -1,6 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DOCUMENT_CATEGORIES } from "@/lib/data/types";
-import type { TransactionType } from "@/lib/data/types";
+import type {
+  ClientPointsContext,
+  ClientReferral,
+  DriverReferralStatus,
+  TransactionType,
+} from "@/lib/data/types";
 
 export type ClientBalances = {
   driver_balance: number;
@@ -8,6 +13,7 @@ export type ClientBalances = {
   repair_balance: number;
   rental_balance: number;
   penalty_balance: number;
+  fuel_credit: number;
   weekly_fuel_limit: number;
   weekly_fuel_issued: number;
   weekly_fuel_available: number;
@@ -150,6 +156,7 @@ export type ClientTransaction = {
   type: TransactionType;
   amount: number;
   litres: number | null;
+  points_earned: number;
   vehicle_name: string | null;
   garage_name: string | null;
   created_at: string;
@@ -170,7 +177,7 @@ export async function getClientTransactions(
 
   const { data, error } = await supabase
     .from("transactions")
-    .select("id, type, amount, litres, created_at, vehicles(make_model), garages(name)")
+    .select("id, type, amount, litres, points_earned, created_at, vehicles(make_model), garages(name)")
     .eq("driver_id", driverId)
     .order("created_at", { ascending: false });
 
@@ -187,6 +194,7 @@ export async function getClientTransactions(
         row.litres === null || row.litres === undefined
           ? null
           : Number(row.litres),
+      points_earned: Number(row.points_earned ?? 0),
       vehicle_name: vehicle?.make_model ?? null,
       garage_name: garage?.name ?? null,
       created_at: String(row.created_at ?? ""),
@@ -248,18 +256,87 @@ export async function getClientBalances(userId: string): Promise<ClientBalances 
   if (error || !data) return null;
 
   const row = data as Record<string, unknown>;
+  const fuelBalance = Number(row.fuel_balance ?? 0);
+  const fuelCredit = fuelBalance < 0 ? Math.abs(fuelBalance) : 0;
+
   return {
     driver_balance: Number(row.driver_balance ?? 0),
-    fuel_balance: Number(row.fuel_balance ?? 0),
+    fuel_balance: fuelBalance,
     repair_balance: Number(row.repair_balance ?? 0),
     rental_balance: Number(row.rental_balance ?? 0),
     penalty_balance: Number(row.penalty_balance ?? 0),
+    fuel_credit: fuelCredit,
     weekly_fuel_limit: Number(row.weekly_fuel_limit ?? 2000),
     weekly_fuel_issued: Number(row.weekly_fuel_issued ?? 0),
-    weekly_fuel_available: Number(row.weekly_fuel_available ?? 0),
+    weekly_fuel_available: Number(row.weekly_fuel_available ?? 0) + fuelCredit,
     next_payment_due: row.next_payment_due ? String(row.next_payment_due) : null,
     is_overdue: Boolean(row.is_overdue),
   };
+}
+
+export async function getClientPointsContext(
+  userId: string
+): Promise<ClientPointsContext | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      "id, full_name, points_balance, lifetime_points_earned, lifetime_points_redeemed, current_streak, referral_code"
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const row = data as Record<string, unknown>;
+
+  return {
+    driver_id: String(row.id),
+    full_name: row.full_name ? String(row.full_name) : null,
+    points_balance: Number(row.points_balance ?? 0),
+    lifetime_points_earned: Number(row.lifetime_points_earned ?? 0),
+    lifetime_points_redeemed: Number(row.lifetime_points_redeemed ?? 0),
+    current_streak: Number(row.current_streak ?? 0),
+    referral_code: row.referral_code ? String(row.referral_code) : null,
+  };
+}
+
+export async function getClientReferrals(
+  driverId: string
+): Promise<ClientReferral[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("driver_referrals")
+    .select("*, profiles!referred_id(full_name, email, avatar_url)")
+    .eq("referrer_id", driverId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => {
+    const referred =
+      (row.profiles as {
+        full_name?: string | null;
+        email?: string | null;
+        avatar_url?: string | null;
+      } | null) ?? null;
+
+    return {
+      id: String(row.id),
+      referred_id: row.referred_id ? String(row.referred_id) : null,
+      referred_name: referred?.full_name ?? null,
+      referred_email: row.referred_email
+        ? String(row.referred_email)
+        : referred?.email ?? null,
+      referred_avatar_url: referred?.avatar_url ?? null,
+      status: String(row.status ?? "pending") as DriverReferralStatus,
+      weeks_paid: Number(row.weeks_paid ?? 0),
+      points_earned: Number(row.points_earned ?? 0),
+      last_payment_at: row.last_payment_at
+        ? String(row.last_payment_at)
+        : null,
+      created_at: String(row.created_at ?? ""),
+    };
+  });
 }
 
 export type ClientRequiredAction = {
