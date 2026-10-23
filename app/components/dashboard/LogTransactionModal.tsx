@@ -13,6 +13,11 @@ import { formatMoney } from "@/lib/utils";
 
 const FUEL_TYPES: TransactionType[] = ["fuel_issue", "fuel_repayment"];
 const REPAIR_TYPES: TransactionType[] = ["repair_issue", "repair_repayment"];
+const REPAYMENT_TYPES: TransactionType[] = [
+  "fuel_repayment",
+  "repair_repayment",
+  "rental_repayment",
+];
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -60,6 +65,8 @@ export function LogTransactionModal({
   const [type, setType] = useState<TransactionType>(defaultType);
   const [amount, setAmount] = useState<string>("");
   const [litres, setLitres] = useState<string>("");
+  const [pointsEarned, setPointsEarned] = useState<string>("");
+  const [onTime, setOnTime] = useState(false);
   const [vehicleId, setVehicleId] = useState<string>("");
   const [garageId, setGarageId] = useState<string>("");
   const [createdAt, setCreatedAt] = useState<string>("");
@@ -104,6 +111,8 @@ export function LogTransactionModal({
     setType(defaultType);
     setAmount("");
     setLitres("");
+    setPointsEarned("");
+    setOnTime(false);
     setVehicleId(vehicles[0]?.id ?? "");
     setGarageId(defaultGarageForType(defaultType));
     setCreatedAt("");
@@ -121,6 +130,8 @@ export function LogTransactionModal({
     formData.append("type", type);
     formData.append("amount", amount);
     formData.append("litres", litres);
+    formData.append("points_earned", pointsEarned);
+    formData.append("on_time", onTime ? "true" : "false");
     formData.append("vehicle_id", vehicleId);
     formData.append("garage_id", garageId);
     formData.append("created_at", createdAt);
@@ -370,7 +381,44 @@ export function LogTransactionModal({
                     />
                   </div>
                 ) : null}
+                {REPAYMENT_TYPES.includes(type) ? (
+                  <div>
+                    <label htmlFor="transaction_points" className={labelClass}>
+                      Points earned{" "}
+                      <span className="font-normal text-textdark/50">
+                        (optional)
+                      </span>
+                    </label>
+                    <input
+                      id="transaction_points"
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={pointsEarned}
+                      onChange={(e) => setPointsEarned(e.target.value)}
+                      className={inputClass}
+                      placeholder="0"
+                    />
+                  </div>
+                ) : null}
               </div>
+
+              {REPAYMENT_TYPES.includes(type) ? (
+                <label className="flex items-start gap-3 rounded-lg border border-grey/40 bg-offwhite px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={onTime}
+                    onChange={(e) => setOnTime(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-grey text-orange focus:ring-orange/60"
+                  />
+                  <span className="text-sm text-textdark">
+                    <span className="font-semibold">On-time payment</span>
+                    <span className="block text-textdark/50">
+                      Increments the driver&apos;s current streak by 1.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
 
               <div>
                 <label htmlFor="transaction_vehicle" className={labelClass}>

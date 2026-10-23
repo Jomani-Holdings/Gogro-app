@@ -17,6 +17,7 @@ const typeStyles: Record<string, string> = {
   repair_issue: "bg-yellow/20 text-textdark",
   fuel_repayment: "bg-success/10 text-success",
   repair_repayment: "bg-success/10 text-success",
+  reward_credit: "bg-success/10 text-success",
   rental_fee: "bg-navy/10 text-navy",
   opening_balance: "bg-grey/40 text-textdark",
   balance_correction_increase: "bg-blue-600/10 text-blue-600",
@@ -184,6 +185,20 @@ export function TransactionsTable({
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-textdark">
                       {formatMoney(tx.amount, 2)}
+                      {tx.points_earned > 0 ? (
+                        <span className="block text-xs font-semibold text-success">
+                          +{tx.points_earned} pts
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openDelete(tx)}
+                        className="rounded-lg border border-error/60 px-3 py-1.5 text-xs font-semibold text-error transition-colors hover:bg-error/10"
+                      >
+                        Delete
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button

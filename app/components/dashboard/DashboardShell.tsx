@@ -26,6 +26,7 @@ import {
   Car,
   Receipt,
   Banknote,
+  Gift,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const iconMap: Record<string, LucideIcon> = {
   Car,
   Receipt,
   Banknote,
+  Gift,
 };
 
 export function DashboardShell({
