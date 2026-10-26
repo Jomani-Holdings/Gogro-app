@@ -58,5 +58,7 @@ AGENTS.md
 CLAUDE.md
 project-context.md
 
-# seed scripts
-scripts/seed-admin.mjs
+# seed scripts / sensitive driver data
+scripts/
+.ignored/
+drivers_seed.csv
