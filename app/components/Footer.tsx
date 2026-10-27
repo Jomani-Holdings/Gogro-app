@@ -38,6 +38,7 @@ export function Footer() {
                 src="/images/logo/Jomani-Logo.png"
                 alt="Jomani Holdings"
                 fill
+                sizes="144px"
                 className="object-contain"
               />
             </div>

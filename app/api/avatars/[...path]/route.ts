@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AVATARS_BUCKET } from "@/lib/media";
+import { AVATARS_BUCKET, sanitizeStorageKey } from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -11,14 +11,14 @@ export async function GET(
 ) {
   const { path } = await ctx.params;
   const segments = Array.isArray(path) ? path : [path];
-  const key = segments.join("/");
+  const key = sanitizeStorageKey(segments.join("/"));
 
   if (!key) {
     return new NextResponse("Not found", { status: 404 });
   }
 
   // Avatars are stored under <user_id>/<filename> in the avatars bucket.
-  const ownerId = segments[0];
+  const ownerId = key.split("/")[0];
   if (!ownerId) return new NextResponse("Not found", { status: 404 });
 
   const supabase = await createClient();

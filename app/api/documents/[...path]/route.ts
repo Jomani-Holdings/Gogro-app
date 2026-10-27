@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DOCUMENTS_BUCKET } from "@/lib/media";
+import { DOCUMENTS_BUCKET, sanitizeStorageKey } from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +11,14 @@ export async function GET(
 ) {
   const { path } = await ctx.params;
   const segments = Array.isArray(path) ? path : [path];
-  const key = segments.join("/");
+  const key = sanitizeStorageKey(segments.join("/"), DOCUMENTS_BUCKET);
 
-  if (!key || !key.startsWith(`${DOCUMENTS_BUCKET}/`)) {
+  if (!key) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const isContract = segments[1] === "contracts";
+  const keySegments = key.split("/");
+  const isContract = keySegments[1] === "contracts";
 
   const admin = createAdminClient();
   const supabase = await createClient();
@@ -49,7 +50,7 @@ export async function GET(
     if (!isContract) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
-    const formId = segments[2];
+    const formId = keySegments[2];
     const token = new URL(req.url).searchParams.get("token");
     if (!formId || !token) {
       return new NextResponse("Unauthorized", { status: 401 });

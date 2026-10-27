@@ -1,40 +1,66 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import type { NotificationItem } from "@/lib/notification-types";
 import {
   getMyNotifications,
   markAllNotificationsRead,
-  type NotificationItem,
 } from "@/app/dashboard/notifications/actions";
 
-export function NotificationBell({ onDark = false }: { onDark?: boolean }) {
+export function NotificationBell({
+  onDark = false,
+  userId,
+  initialItems = [],
+  initialUnreadCount = 0,
+}: {
+  onDark?: boolean;
+  userId: string;
+  initialItems?: NotificationItem[];
+  initialUnreadCount?: number;
+}) {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [unread, setUnread] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<NotificationItem[]>(initialItems);
+  const [unread, setUnread] = useState(initialUnreadCount);
   const ref = useRef<HTMLDivElement | null>(null);
+  const instanceId = useId().replace(/[^a-zA-Z0-9]/g, "");
 
   const load = useCallback(async () => {
     const res = await getMyNotifications();
     setItems(res.items);
     setUnread(res.unreadCount);
-    setLoading(false);
+    return res;
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      void load();
-    }, 30000);
-    const initial = setTimeout(() => {
-      void load();
-    }, 0);
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`notifications:${userId}:${instanceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const row = payload.new as NotificationItem;
+          setItems((prev) => {
+            if (prev.some((item) => item.id === row.id)) return prev;
+            return [row, ...prev].slice(0, 20);
+          });
+          if (!row.read) setUnread((prev) => prev + 1);
+        }
+      )
+      .subscribe();
+
     return () => {
-      clearInterval(interval);
-      clearTimeout(initial);
+      void supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, [userId, instanceId]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -50,8 +76,8 @@ export function NotificationBell({ onDark = false }: { onDark?: boolean }) {
     const next = !open;
     setOpen(next);
     if (next) {
-      await load();
-      if (unread > 0) {
+      const snapshot = await load();
+      if (snapshot.unreadCount > 0) {
         await markAllNotificationsRead();
         setUnread(0);
         setItems((prev) => prev.map((item) => ({ ...item, read: true })));
@@ -59,13 +85,13 @@ export function NotificationBell({ onDark = false }: { onDark?: boolean }) {
     }
   }
 
-function formatTime(iso: string) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString("en-ZA", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
+  function formatTime(iso: string) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleString("en-ZA", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
 
   return (
     <div className="relative" ref={ref}>
@@ -96,11 +122,7 @@ function formatTime(iso: string) {
             </span>
           </div>
           <div className="max-h-96 overflow-y-auto">
-            {loading ? (
-              <p className="px-4 py-6 text-sm text-textdark/50 text-center">
-                Loading…
-              </p>
-            ) : items.length === 0 ? (
+            {items.length === 0 ? (
               <p className="px-4 py-6 text-sm text-textdark/50 text-center">
                 You&apos;re all caught up.
               </p>

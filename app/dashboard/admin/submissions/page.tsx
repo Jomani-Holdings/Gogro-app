@@ -1,8 +1,23 @@
 import { getAdminSubmissions } from "@/lib/data/admin";
 import { SubmissionsTable } from "@/app/components/dashboard/SubmissionsTable";
 
-export default async function AdminSubmissionsPage() {
-  const submissions = await getAdminSubmissions();
+export default async function AdminSubmissionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const cursor = typeof params.cursor === "string" ? params.cursor : undefined;
+  const direction = params.dir === "prev" ? "prev" : "next";
+  const query = typeof params.q === "string" ? params.q : "";
+  const status = typeof params.status === "string" ? params.status : "all";
+
+  const page = await getAdminSubmissions({
+    cursor,
+    direction,
+    query,
+    status,
+  });
 
   return (
     <div>
@@ -14,7 +29,11 @@ export default async function AdminSubmissionsPage() {
       </p>
 
       <div className="mt-8">
-        <SubmissionsTable submissions={submissions} />
+        <SubmissionsTable
+          submissions={page.rows}
+          pageInfo={page}
+          filters={{ query, status }}
+        />
       </div>
     </div>
   );

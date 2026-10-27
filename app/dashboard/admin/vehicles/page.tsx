@@ -2,9 +2,24 @@ import Link from "next/link";
 import { getAdminVehicles } from "@/lib/data/admin";
 import { VehiclesTable } from "@/app/components/dashboard/VehiclesTable";
 
-export default async function AdminVehiclesPage() {
-  const vehicles = await getAdminVehicles();
-  const fleetVehicles = vehicles.filter((v) => v.ownership_type !== "own");
+export default async function AdminVehiclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const cursor = typeof params.cursor === "string" ? params.cursor : undefined;
+  const direction = params.dir === "prev" ? "prev" : "next";
+  const query = typeof params.q === "string" ? params.q : "";
+  const status = typeof params.status === "string" ? params.status : "all";
+
+  const page = await getAdminVehicles({
+    cursor,
+    direction,
+    query,
+    status,
+    fleetOnly: true,
+  });
 
   return (
     <div>
@@ -26,7 +41,11 @@ export default async function AdminVehiclesPage() {
       </div>
 
       <div className="mt-8">
-        <VehiclesTable vehicles={fleetVehicles} />
+        <VehiclesTable
+          vehicles={page.rows}
+          pageInfo={page}
+          filters={{ query, status }}
+        />
       </div>
     </div>
   );
