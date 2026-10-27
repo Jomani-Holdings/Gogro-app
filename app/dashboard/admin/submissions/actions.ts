@@ -1,7 +1,9 @@
 "use server";
 
+import { randomInt } from "crypto";
 import { revalidatePath } from "next/cache";
 import { Resend } from "resend";
+import { z } from "zod";
 import { escapeHtml, type EmailVariables } from "@/lib/email";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,6 +28,16 @@ const SUBMISSION_STATUSES = [
   "rejected",
 ];
 
+const updateSubmissionStatusSchema = z.object({
+  id: z.string().uuid(),
+  status: z
+    .string()
+    .refine(
+      (value) => SUBMISSION_STATUSES.includes(value),
+      "Invalid submission status."
+    ),
+});
+
 function parseBandUpperBound(value: unknown): number | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const numbers = value.replace(/\s+/g, "").match(/\d+/g);
@@ -36,7 +48,7 @@ function parseBandUpperBound(value: unknown): number | null {
 
 async function generateFuelCode(admin: ReturnType<typeof createAdminClient>): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const code = `GG-${Math.floor(1000 + Math.random() * 9000)}`;
+    const code = `GG-${randomInt(1000, 10000)}`;
     const { data } = await admin
       .from("profiles")
       .select("id")
@@ -44,7 +56,7 @@ async function generateFuelCode(admin: ReturnType<typeof createAdminClient>): Pr
       .maybeSingle();
     if (!data) return code;
   }
-  return `GG-${Math.floor(1000 + Math.random() * 9000)}`;
+  return `GG-${randomInt(1000, 10000)}`;
 }
 
 export async function updateSubmissionStatus(
@@ -52,9 +64,17 @@ export async function updateSubmissionStatus(
   status: string
 ): Promise<SubmissionActionResult> {
   await requireAdmin();
-  if (!SUBMISSION_STATUSES.includes(status)) {
-    return { ok: false, error: "Invalid status." };
+
+  const parsed = updateSubmissionStatusSchema.safeParse({ id, status });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid submission or status.",
+    };
   }
+
+  id = parsed.data.id;
+  status = parsed.data.status;
 
   const admin = createAdminClient();
 
@@ -81,6 +101,21 @@ export async function updateSubmissionStatus(
     submissionData.data && typeof submissionData.data === "object"
       ? (submissionData.data as Record<string, unknown>)
       : {};
+
+  if (status === "approved" && lead?.user_id) {
+    const { data: existingProfile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("user_id", lead.user_id)
+      .maybeSingle();
+
+    if (existingProfile?.role === "admin") {
+      return {
+        ok: false,
+        error: "Cannot change an admin account through submission approval.",
+      };
+    }
+  }
 
   const { error } = await admin
     .from("form_submissions")

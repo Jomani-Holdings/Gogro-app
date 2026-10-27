@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyUser } from "@/lib/notifications";
-import { logTransaction } from "@/app/dashboard/admin/transactions/actions";
 
 export type ReviewPaymentProofResult = {
   ok: boolean;
@@ -18,7 +18,12 @@ export type ReviewPaymentProofInput = {
   notes?: string;
 };
 
-const ACTIONS = ["approved", "rejected", "disputed"] as const;
+const reviewPaymentProofSchema = z.object({
+  proofId: z.string().uuid(),
+  action: z.enum(["approved", "rejected", "disputed"]),
+  amount: z.number().positive().finite().optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
 
 export async function reviewPaymentProof(
   input: ReviewPaymentProofInput
@@ -26,15 +31,22 @@ export async function reviewPaymentProof(
   const adminProfile = await requireAdmin();
   const admin = createAdminClient();
 
-  const proofId = String(input.proofId ?? "").trim();
-  const action = String(input.action ?? "").trim();
-  const notes = input.notes?.trim() ? input.notes.trim() : null;
-  const amount = Number(input.amount ?? 0);
+  const parsed = reviewPaymentProofSchema.safeParse({
+    proofId: String(input.proofId ?? "").trim(),
+    action: String(input.action ?? "").trim(),
+    amount:
+      input.action === "approved" ? Number(input.amount ?? 0) : undefined,
+    notes: input.notes?.trim() ? input.notes.trim() : undefined,
+  });
 
-  if (!proofId) return { ok: false, error: "Missing payment proof." };
-  if (!ACTIONS.includes(action as (typeof ACTIONS)[number])) {
-    return { ok: false, error: "Invalid review action." };
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid review action.",
+    };
   }
+
+  const { proofId, action, notes = null, amount = 0 } = parsed.data;
 
   const { data: proof, error: proofError } = await admin
     .from("payment_proofs")
@@ -56,37 +68,36 @@ export async function reviewPaymentProof(
     if (!proof.profile_id) {
       return { ok: false, error: "This proof is not linked to a driver." };
     }
-
-    const formData = new FormData();
-    formData.append("driver_id", String(proof.profile_id));
-    formData.append("type", "fuel_repayment");
-    formData.append("amount", String(amount));
-    formData.append("skip_notification", "true");
-
-    const logged = await logTransaction(formData);
-    if (!logged.ok) {
-      return {
-        ok: false,
-        error: logged.error ?? logged.warning ?? "Could not log the repayment.",
-      };
-    }
   }
 
   if (action === "rejected" && !notes) {
     return { ok: false, error: "A rejection reason is required." };
   }
 
-  const { error } = await admin
-    .from("payment_proofs")
-    .update({
-      status: action,
-      reviewer_notes: notes,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: adminProfile.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", proofId);
+  const { data: reviewData, error } = await admin.rpc(
+    "review_payment_proof",
+    {
+      p_proof_id: proofId,
+      p_admin_profile_id: adminProfile.id,
+      p_action: action,
+      p_amount: action === "approved" ? amount : null,
+      p_notes: notes,
+    }
+  );
+
   if (error) return { ok: false, error: error.message };
+
+  const reviewResult = reviewData as {
+    ok?: boolean;
+    error?: string;
+  } | null;
+
+  if (!reviewResult?.ok) {
+    return {
+      ok: false,
+      error: reviewResult?.error ?? "Could not review the payment proof.",
+    };
+  }
 
   const driverUserId = proof.user_id ? String(proof.user_id) : null;
   if (driverUserId) {

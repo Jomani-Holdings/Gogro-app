@@ -35,6 +35,7 @@ import { LogoutButton } from "@/app/components/dashboard/LogoutButton";
 import { NotificationBell } from "@/app/components/dashboard/NotificationBell";
 import { ClientHeaderClock } from "@/app/components/dashboard/ClientHeaderClock";
 import type { NavItem, NavGroup } from "@/lib/dashboard-nav";
+import type { NotificationItem } from "@/lib/notification-types";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -64,6 +65,9 @@ export function DashboardShell({
   role,
   fullName,
   email,
+  userId,
+  initialNotifications,
+  initialUnreadCount,
   children,
 }: {
   navItems: NavItem[];
@@ -71,6 +75,9 @@ export function DashboardShell({
   role: "client" | "admin";
   fullName: string | null;
   email: string | null;
+  userId: string;
+  initialNotifications: NotificationItem[];
+  initialUnreadCount: number;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -260,7 +267,15 @@ export function DashboardShell({
                 />
               </Link>
             </div>
-            <ClientHeaderClock />
+            <div className="flex items-center gap-3">
+              <NotificationBell
+                onDark
+                userId={userId}
+                initialItems={initialNotifications}
+                initialUnreadCount={initialUnreadCount}
+              />
+              <ClientHeaderClock />
+            </div>
           </div>
         </header>
 
@@ -325,7 +340,12 @@ export function DashboardShell({
             <Menu size={20} />
           </button>
           <span className="text-sm font-semibold text-white">{roleLabel}</span>
-          <NotificationBell onDark />
+          <NotificationBell
+            onDark
+            userId={userId}
+            initialItems={initialNotifications}
+            initialUnreadCount={initialUnreadCount}
+          />
         </div>
       </header>
 
@@ -334,7 +354,11 @@ export function DashboardShell({
           <div className="container mx-auto px-6 flex items-center justify-between h-16">
             <h2 className="text-base font-semibold text-textdark">{roleLabel}</h2>
             <div className="flex items-center gap-3">
-              <NotificationBell />
+              <NotificationBell
+                userId={userId}
+                initialItems={initialNotifications}
+                initialUnreadCount={initialUnreadCount}
+              />
               <span className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-navy text-white shrink-0">
                 <User size={16} />
               </span>

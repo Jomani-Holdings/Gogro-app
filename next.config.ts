@@ -9,7 +9,7 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   img-src 'self' data: blob: https://*.supabase.co https://bawhymljrkxnxqcotdws.supabase.co https://maps.google.com https://fonts.gstatic.com;
   font-src 'self' data: https://fonts.gstatic.com;
-  connect-src 'self' https://*.supabase.co https://bawhymljrkxnxqcotdws.supabase.co https://maps.google.com;
+  connect-src 'self' https://*.supabase.co https://bawhymljrkxnxqcotdws.supabase.co wss://*.supabase.co wss://bawhymljrkxnxqcotdws.supabase.co https://maps.google.com;
   frame-src https://maps.google.com https://www.google.com;
   object-src 'none';
   base-uri 'self';
@@ -48,7 +48,7 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value:
-              "camera=(), microphone=(), geolocation=(self), payment=(), usb=(), browsing-topics=()",
+              "camera=(), microphone=(), geolocation=(self), payment=(), usb=()",
           },
           {
             key: "X-XSS-Protection",

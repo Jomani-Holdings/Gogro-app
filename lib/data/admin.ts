@@ -1,3 +1,4 @@
+import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DOCUMENTS_BUCKET } from "@/lib/media";
 import type { JSONContent } from "@tiptap/core";
@@ -143,6 +144,120 @@ function mapApplication(row: Record<string, unknown>): AdminApplication {
   };
 }
 
+export type CursorDirection = "next" | "prev";
+
+export type CursorPage<T> = {
+  rows: T[];
+  pageSize: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  nextCursor: string | null;
+  prevCursor: string | null;
+};
+
+export type CursorRequest = {
+  cursor?: string;
+  direction?: CursorDirection;
+  pageSize?: number;
+};
+
+type DecodedCursor = {
+  createdAt: string;
+  id: string;
+};
+
+function encodeCursorValue(createdAt: string, id: string): string {
+  return Buffer.from(`${createdAt}|${id}`, "utf8").toString("base64url");
+}
+
+function decodeCursor(cursor?: string): DecodedCursor | null {
+  if (!cursor) return null;
+  try {
+    const decoded = Buffer.from(cursor, "base64url").toString("utf8");
+    const separator = decoded.lastIndexOf("|");
+    if (separator <= 0) return null;
+    const createdAt = decoded.slice(0, separator);
+    const id = decoded.slice(separator + 1);
+    if (!createdAt || !id) return null;
+    return { createdAt, id };
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeSearchTerm(query?: string): string {
+  return (query ?? "").trim().replace(/[\\%,()*]/g, "").slice(0, 100);
+}
+
+function cursorFilter(
+  cursor: DecodedCursor,
+  direction: CursorDirection
+): string {
+  const operator = direction === "prev" ? "gt" : "lt";
+  return `created_at.${operator}."${cursor.createdAt}",and(created_at.eq."${cursor.createdAt}",id.${operator}."${cursor.id}")`;
+}
+
+function cursorFilterAt(
+  cursor: DecodedCursor,
+  direction: CursorDirection,
+  column: string
+): string {
+  const operator = direction === "prev" ? "gt" : "lt";
+  return `${column}.${operator}."${cursor.createdAt}",and(${column}.eq."${cursor.createdAt}",id.${operator}."${cursor.id}")`;
+}
+
+function encodePageRow(
+  row: unknown,
+  timestampKey: string
+): string | null {
+  const record = row as Record<string, unknown>;
+  const createdAt = record[timestampKey];
+  const id = record.id;
+  if (!createdAt || !id) return null;
+  return encodeCursorValue(String(createdAt), String(id));
+}
+
+function buildCursorPage<T>(
+  fetched: T[],
+  direction: CursorDirection,
+  pageSize: number,
+  hadCursor: boolean,
+  timestampKey = "created_at"
+): CursorPage<T> {
+  if (direction === "prev") {
+    const hasPreviousPage = fetched.length > pageSize;
+    const rows = fetched.slice(0, pageSize).reverse();
+    return {
+      rows,
+      pageSize,
+      hasNextPage: hadCursor,
+      hasPreviousPage,
+      nextCursor: rows.length
+        ? encodePageRow(rows[rows.length - 1], timestampKey)
+        : null,
+      prevCursor: rows.length ? encodePageRow(rows[0], timestampKey) : null,
+    };
+  }
+
+  const hasNextPage = fetched.length > pageSize;
+  const rows = fetched.slice(0, pageSize);
+  return {
+    rows,
+    pageSize,
+    hasNextPage,
+    hasPreviousPage: hadCursor,
+    nextCursor:
+      hasNextPage && rows.length
+        ? encodePageRow(rows[rows.length - 1], timestampKey)
+        : null,
+    prevCursor: rows.length ? encodePageRow(rows[0], timestampKey) : null,
+  };
+}
+
+function normalizePageSize(pageSize?: number, fallback = 25): number {
+  return Math.min(100, Math.max(1, pageSize ?? fallback));
+}
+
 export async function getAdminApplications(): Promise<AdminApplication[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -168,16 +283,59 @@ export async function getAdminApplication(
   return mapApplication(data as Record<string, unknown>);
 }
 
-export async function getAdminDrivers(): Promise<AdminDriver[]> {
+export type AdminDriverFilters = CursorRequest & {
+  query?: string;
+  status?: string;
+  garage?: string;
+  suspended?: boolean;
+};
+
+export async function getAdminDrivers(
+  filters: AdminDriverFilters = {}
+): Promise<CursorPage<AdminDriver>> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
+
+  let q = supabase
     .from("driver_account_summary")
     .select("*")
-    .neq("role", "admin")
-    .order("created_at", { ascending: false });
+    .neq("role", "admin");
+
+  if (filters.status && filters.status !== "all") {
+    q = q.eq("driver_status", filters.status);
+  }
+  if (filters.garage && filters.garage !== "all") {
+    q = q.eq("fuel_garage_id", filters.garage);
+  }
+  if (filters.suspended !== undefined) {
+    q = q.eq("suspended", filters.suspended);
+  }
+
+  const term = sanitizeSearchTerm(filters.query);
+  if (term) {
+    q = q.or(
+      `full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%,fuel_code.ilike.%${term}%`
+    );
+  }
+
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
+
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
 
   if (error) throw new Error(error.message);
-  return ((data as Record<string, unknown>[]) ?? []).map(mapAdminDriver);
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
+  );
+  return { ...page, rows: page.rows.map(mapAdminDriver) };
 }
 
 export async function getAdminDriver(id: string): Promise<AdminDriver | null> {
@@ -453,15 +611,69 @@ function mapVehicle(row: Record<string, unknown>): Vehicle {
   };
 }
 
-export async function getAdminVehicles(): Promise<Vehicle[]> {
+export type AdminVehicleFilters = CursorRequest & {
+  query?: string;
+  status?: string;
+  fleetOnly?: boolean;
+};
+
+export async function getAdminVehicles(
+  filters: AdminVehicleFilters = {}
+): Promise<CursorPage<Vehicle>> {
+  const supabase = createAdminClient();
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
+
+  let q = supabase.from("vehicles").select("*, profiles(id, full_name)");
+
+  if (filters.fleetOnly) {
+    q = q.neq("ownership_type", "own");
+  }
+  if (filters.status && filters.status !== "all") {
+    q = q.eq("status", filters.status);
+  }
+
+  const term = sanitizeSearchTerm(filters.query);
+  if (term) {
+    q = q.or(
+      `make_model.ilike.%${term}%,registration.ilike.%${term}%,owner_name.ilike.%${term}%`
+    );
+  }
+
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
+
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
+
+  if (error) throw new Error(error.message);
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
+  );
+  return { ...page, rows: page.rows.map(mapVehicle) };
+}
+
+export async function getAdminVehicleOptions(): Promise<
+  { id: string; make_model: string; registration: string }[]
+> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("vehicles")
-    .select("*, profiles(id, full_name)")
-    .order("created_at", { ascending: false });
+    .select("id, make_model, registration")
+    .order("make_model");
 
   if (error) throw new Error(error.message);
-  return ((data as Record<string, unknown>[]) ?? []).map(mapVehicle);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => ({
+    id: String(row.id),
+    make_model: String(row.make_model ?? ""),
+    registration: String(row.registration ?? ""),
+  }));
 }
 
 export async function getAdminVehicle(id: string): Promise<Vehicle | null> {
@@ -476,174 +688,73 @@ export async function getAdminVehicle(id: string): Promise<Vehicle | null> {
   return mapVehicle(data as Record<string, unknown>);
 }
 
-function startOfMonth(): string {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  return start.toISOString();
+function rpcRecord(data: unknown): Record<string, unknown> {
+  if (Array.isArray(data)) {
+    return (data[0] as Record<string, unknown> | undefined) ?? {};
+  }
+  return (data as Record<string, unknown> | null) ?? {};
 }
 
 export async function getAdminDashboardStats(): Promise<DashboardStats> {
   const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("admin_dashboard_stats");
+  if (error) throw new Error(error.message);
 
-  const [activeDriversRes, summaryRes, repaymentsRes, issuedRes, vehiclesRes] =
-    await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id")
-        .eq("driver_status", "active"),
-      supabase
-        .from("driver_account_summary")
-        .select(
-          "driver_balance, weekly_fuel_issued, weekly_fuel_issued_litres, weekly_fuel_limit, is_overdue"
-        )
-        .neq("role", "admin"),
-      supabase
-        .from("active_transactions")
-        .select("amount")
-        .in("type", [
-          "fuel_repayment",
-          "repair_repayment",
-          "rental_repayment",
-        ]),
-      supabase
-        .from("active_transactions")
-        .select("amount")
-        .in("type", [
-          "fuel_issue",
-          "repair_issue",
-          "rental_fee",
-          "penalty_fee",
-        ]),
-      supabase
-        .from("vehicles")
-        .select("id, ownership_type")
-        .eq("status", "active"),
-    ]);
-
-  const activeDrivers = activeDriversRes.data?.length ?? 0;
-
-  const rows = (summaryRes.data ?? []) as Record<string, unknown>[];
-
-  const fuelIssuedThisCycle = {
-    amount: Number(
-      rows.reduce(
-        (sum, p) => sum + Number(p.weekly_fuel_issued ?? 0),
-        0
-      )
-    ),
-    litres: Number(
-      rows.reduce(
-        (sum, p) => sum + Number(p.weekly_fuel_issued_litres ?? 0),
-        0
-      )
-    ),
-  };
-
-  const totalOutstanding = Number(
-    rows.reduce((sum, p) => sum + Number(p.driver_balance ?? 0), 0)
-  );
-
-  const overdueAccounts = rows.filter((p) => Boolean(p.is_overdue)).length;
-
-  const accountsOverLimit = rows.filter(
-    (p) =>
-      Number(p.weekly_fuel_issued ?? 0) > Number(p.weekly_fuel_limit ?? 2000)
-  ).length;
-
-  const totalRepaid = Number(
-    (repaymentsRes.data ?? []).reduce(
-      (sum, t) => sum + Number(t.amount ?? 0),
-      0
-    )
-  );
-  const totalIssued = Number(
-    (issuedRes.data ?? []).reduce((sum, t) => sum + Number(t.amount ?? 0), 0)
-  );
-  const repaymentRate =
-    totalIssued > 0 ? Math.round((totalRepaid / totalIssued) * 100) : 0;
-
-  const activeVehicles = (vehiclesRes.data ?? []) as {
-    ownership_type: string | null;
-  }[];
-  const rentalVehicles = activeVehicles.filter(
-    (v) => v.ownership_type === "rental"
-  ).length;
-  const vehiclesUnderManagement = activeVehicles.filter(
-    (v) => v.ownership_type === "managed"
-  ).length;
+  const row = rpcRecord(data);
+  const fuelIssued = (row.fuelIssuedThisCycle as
+    | { amount?: unknown; litres?: unknown }
+    | null) ?? {};
 
   return {
-    activeDrivers,
-    fuelIssuedThisCycle,
-    totalOutstanding,
-    repaymentRate,
-    overdueAccounts,
-    accountsOverLimit,
-    vehiclesUnderManagement,
-    rentalVehicles,
+    activeDrivers: Number(row.activeDrivers ?? 0),
+    fuelIssuedThisCycle: {
+      amount: Number(fuelIssued.amount ?? 0),
+      litres: Number(fuelIssued.litres ?? 0),
+    },
+    totalOutstanding: Number(row.totalOutstanding ?? 0),
+    repaymentRate: Number(row.repaymentRate ?? 0),
+    overdueAccounts: Number(row.overdueAccounts ?? 0),
+    accountsOverLimit: Number(row.accountsOverLimit ?? 0),
+    vehiclesUnderManagement: Number(row.vehiclesUnderManagement ?? 0),
+    rentalVehicles: Number(row.rentalVehicles ?? 0),
   };
 }
 
-export async function getAdminActiveDriversForDashboard(): Promise<
-  DashboardActiveDriver[]
-> {
+export async function getAdminActiveDriversForDashboard(
+  limit = 20
+): Promise<DashboardActiveDriver[]> {
   const supabase = createAdminClient();
-  const monthStart = startOfMonth();
+  const { data, error } = await supabase.rpc(
+    "admin_active_drivers_for_dashboard",
+    { p_limit: limit }
+  );
+  if (error) throw new Error(error.message);
 
-  const [summaryRes, fuelRes] = await Promise.all([
-    supabase
-      .from("driver_account_summary")
-      .select(
-        "id, full_name, email, driver_status, driver_balance, weekly_fuel_limit, weekly_fuel_issued, next_payment_due, is_overdue, vehicles(id, make_model, registration, status)"
-      )
-      .eq("driver_status", "active")
-      .order("full_name"),
-    supabase
-      .from("active_transactions")
-      .select("driver_id, litres")
-      .eq("type", "fuel_issue")
-      .gte("created_at", monthStart),
-  ]);
-
-  const fuelByDriver = new Map<string, number>();
-  for (const t of (fuelRes.data ?? []) as { driver_id: string; litres: number | null }[]) {
-    fuelByDriver.set(
-      t.driver_id,
-      (fuelByDriver.get(t.driver_id) ?? 0) + Number(t.litres ?? 0)
-    );
-  }
-
-  return ((summaryRes.data ?? []) as Record<string, unknown>[]).map((row) => {
-    const vehicles = (row.vehicles as
-      | { id: string; make_model: string; registration: string; status: string }[]
-      | null) ?? [];
-    const primaryVehicle =
-      vehicles.find((v) => v.status === "active") ?? vehicles[0] ?? null;
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => {
+    const vehicle = (row.vehicle as
+      | {
+          id?: unknown;
+          make_model?: unknown;
+          registration?: unknown;
+        }
+      | null) ?? null;
 
     return {
       id: String(row.id),
       full_name: row.full_name ? String(row.full_name) : null,
       email: row.email ? String(row.email) : null,
-      driver_balance:
-        row.driver_balance === null || row.driver_balance === undefined
-          ? 0
-          : Number(row.driver_balance),
-      vehicle: primaryVehicle
-        ? {
-            id: String(primaryVehicle.id),
-            make_model: String(primaryVehicle.make_model),
-            registration: String(primaryVehicle.registration),
-          }
-        : null,
-      fuel_used_this_month: Number(fuelByDriver.get(String(row.id)) ?? 0),
-      weekly_fuel_limit:
-        row.weekly_fuel_limit === null || row.weekly_fuel_limit === undefined
-          ? 2000
-          : Number(row.weekly_fuel_limit),
-      weekly_fuel_issued:
-        row.weekly_fuel_issued === null || row.weekly_fuel_issued === undefined
-          ? 0
-          : Number(row.weekly_fuel_issued),
+      driver_balance: Number(row.driver_balance ?? 0),
+      vehicle:
+        vehicle && vehicle.id
+          ? {
+              id: String(vehicle.id),
+              make_model: String(vehicle.make_model ?? ""),
+              registration: String(vehicle.registration ?? ""),
+            }
+          : null,
+      fuel_used_this_month: Number(row.fuel_used_this_month ?? 0),
+      weekly_fuel_limit: Number(row.weekly_fuel_limit ?? 2000),
+      weekly_fuel_issued: Number(row.weekly_fuel_issued ?? 0),
       next_payment_due: row.next_payment_due
         ? String(row.next_payment_due)
         : null,
@@ -654,72 +765,30 @@ export async function getAdminActiveDriversForDashboard(): Promise<
 
 export async function getFuelUsageByGarage(): Promise<FuelUsageByGarage[]> {
   const supabase = createAdminClient();
-
-  const { data: bounds } = await supabase.rpc("fuel_cycle_bounds", {
-    as_of: new Date().toISOString(),
-  });
-  const cycle = (bounds ?? [])[0] as
-    | { cycle_start?: string; cycle_end?: string }
-    | undefined;
-  const cycleStart = cycle?.cycle_start;
-  const cycleEnd = cycle?.cycle_end;
-
-  if (!cycleStart || !cycleEnd) return [];
-
-  const { data, error } = await supabase
-    .from("active_transactions")
-    .select("garage_id, amount, litres, garage_name")
-    .eq("type", "fuel_issue")
-    .gte("created_at", cycleStart)
-    .lt("created_at", cycleEnd);
-
+  const { data, error } = await supabase.rpc("admin_fuel_usage_by_garage");
   if (error) throw new Error(error.message);
 
-  const byGarage = new Map<
-    string,
-    { garage_id: string | null; garage_name: string | null; litres: number; amount: number }
-  >();
-
-  for (const t of (data ?? []) as Record<string, unknown>[]) {
-    const garageId = t.garage_id ? String(t.garage_id) : null;
-    const garageName = t.garage_name ? String(t.garage_name) : null;
-    const key = garageId ?? "unassigned";
-    const entry = byGarage.get(key) ?? {
-      garage_id: garageId,
-      garage_name: garageName ?? "Unassigned",
-      litres: 0,
-      amount: 0,
-    };
-    entry.litres += Number(t.litres ?? 0);
-    entry.amount += Number(t.amount ?? 0);
-    byGarage.set(key, entry);
-  }
-
-  return [...byGarage.values()].sort((a, b) => b.litres - a.litres);
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    garage_id: row.garage_id ? String(row.garage_id) : null,
+    garage_name: row.garage_name ? String(row.garage_name) : null,
+    litres: Number(row.litres ?? 0),
+    amount: Number(row.amount ?? 0),
+  }));
 }
 
 export async function getTopDebtors(limit = 5): Promise<TopDebtor[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("driver_account_summary")
-    .select("id, full_name, driver_balance")
-    .neq("role", "admin");
-
+  const { data, error } = await supabase.rpc("admin_top_debtors", {
+    p_limit: limit,
+  });
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as Record<string, unknown>[])
-    .map((row) => {
-      const balance = row.driver_balance ? Number(row.driver_balance) : 0;
-      return {
-        id: String(row.id),
-        full_name: row.full_name ? String(row.full_name) : null,
-        driver_balance: balance,
-        total_balance: balance,
-      };
-    })
-    .filter((d) => d.total_balance > 0)
-    .sort((a, b) => b.total_balance - a.total_balance)
-    .slice(0, limit);
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    full_name: row.full_name ? String(row.full_name) : null,
+    driver_balance: Number(row.driver_balance ?? 0),
+    total_balance: Number(row.total_balance ?? 0),
+  }));
 }
 
 function mapTransaction(row: Record<string, unknown>): Transaction {
@@ -782,48 +851,87 @@ export type AdminRepairDriver = AdminDriver & {
   last_repair_at: string | null;
 };
 
-export async function getAdminRepairDrivers(): Promise<AdminRepairDriver[]> {
+export type AdminRepairFilters = CursorRequest & {
+  query?: string;
+  status?: string;
+};
+
+export async function getAdminRepairDrivers(
+  filters: AdminRepairFilters = {}
+): Promise<CursorPage<AdminRepairDriver>> {
   const supabase = createAdminClient();
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
 
-  const [driversRes, repairsRes] = await Promise.all([
-    supabase
-      .from("driver_account_summary")
-      .select("*")
-      .neq("role", "admin")
-      .gt("repair_balance", 0)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("active_transactions")
-      .select("driver_id, type, amount, created_at")
-      .in("type", ["repair_issue", "repair_repayment"]),
-  ]);
+  let q = supabase
+    .from("driver_account_summary")
+    .select("*")
+    .neq("role", "admin")
+    .gt("repair_balance", 0);
 
-  if (driversRes.error) throw new Error(driversRes.error.message);
-  if (repairsRes.error) throw new Error(repairsRes.error.message);
-
-  const stats = new Map<string, { repaid: number; last: string | null }>();
-  for (const t of (repairsRes.data ?? []) as Record<string, unknown>[]) {
-    const driverId = String(t.driver_id);
-    const amount = Number(t.amount ?? 0);
-    const entry = stats.get(driverId) ?? { repaid: 0, last: null };
-    if (t.type === "repair_repayment") entry.repaid += amount;
-    const createdAt = t.created_at ? String(t.created_at) : null;
-    if (createdAt && (!entry.last || createdAt > entry.last)) entry.last = createdAt;
-    stats.set(driverId, entry);
+  if (filters.status && filters.status !== "all") {
+    q = q.eq("driver_status", filters.status);
   }
 
-  return ((driversRes.data ?? []) as Record<string, unknown>[]).map((row) => {
-    const driver = mapAdminDriver(row);
-    const s = stats.get(driver.id) ?? { repaid: 0, last: null };
-    const outstanding = driver.repair_balance;
-    return {
-      ...driver,
-      total_repair_debt: outstanding + s.repaid,
-      total_repair_repaid: s.repaid,
-      net_repair_position: outstanding,
-      last_repair_at: s.last,
-    };
-  });
+  const term = sanitizeSearchTerm(filters.query);
+  if (term) {
+    q = q.or(
+      `full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%,fuel_code.ilike.%${term}%,car_make_model.ilike.%${term}%,car_registration.ilike.%${term}%`
+    );
+  }
+
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
+
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
+
+  if (error) throw new Error(error.message);
+
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
+  );
+  const drivers = page.rows.map(mapAdminDriver);
+  const ids = drivers.map((driver) => driver.id);
+
+  const stats = new Map<
+    string,
+    { repaid: number; last: string | null }
+  >();
+  if (ids.length > 0) {
+    const { data: statRows, error: statError } = await supabase.rpc(
+      "admin_repair_stats",
+      { p_driver_ids: ids }
+    );
+    if (statError) throw new Error(statError.message);
+
+    for (const row of (statRows ?? []) as Record<string, unknown>[]) {
+      stats.set(String(row.driver_id), {
+        repaid: Number(row.total_repair_repaid ?? 0),
+        last: row.last_repair_at ? String(row.last_repair_at) : null,
+      });
+    }
+  }
+
+  return {
+    ...page,
+    rows: drivers.map((driver) => {
+      const stat = stats.get(driver.id) ?? { repaid: 0, last: null };
+      return {
+        ...driver,
+        total_repair_debt: driver.repair_balance + stat.repaid,
+        total_repair_repaid: stat.repaid,
+        net_repair_position: driver.repair_balance,
+        last_repair_at: stat.last,
+      };
+    }),
+  };
 }
 
 export type AdminDriverReferral = {
@@ -910,21 +1018,57 @@ export type AdminTransaction = Transaction & {
   driver_name: string | null;
 };
 
+export type AdminTransactionFilters = CursorRequest & {
+  query?: string;
+  type?: string;
+  from?: string;
+  to?: string;
+};
+
 export async function getAdminTransactions(
-  limit = 200
-): Promise<AdminTransaction[]> {
+  filters: AdminTransactionFilters = {}
+): Promise<CursorPage<AdminTransaction>> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("active_transactions")
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
+
+  let q = supabase
+    .from("admin_transactions_search")
     .select(
       "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at, driver_name"
-    )
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    );
+
+  if (filters.type && filters.type !== "all") {
+    q = q.eq("type", filters.type);
+  }
+  if (filters.from) q = q.gte("created_at", filters.from);
+  if (filters.to) q = q.lte("created_at", `${filters.to}T23:59:59.999Z`);
+
+  const term = sanitizeSearchTerm(filters.query);
+  if (term) {
+    q = q.or(
+      `driver_name.ilike.%${term}%,driver_email.ilike.%${term}%,driver_phone.ilike.%${term}%`
+    );
+  }
+
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
+
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as Record<string, unknown>[]).map(mapActiveTransaction);
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
+  );
+  return { ...page, rows: page.rows.map(mapActiveTransaction) };
 }
 
 export type AdminDeletedTransaction = {
@@ -934,55 +1078,83 @@ export type AdminDeletedTransaction = {
   deleted_by_name: string | null;
 };
 
+export type AdminDeletedTransactionFilters = CursorRequest & {
+  query?: string;
+};
+
 export async function getAdminDeletedTransactions(
-  limit = 200
-): Promise<AdminDeletedTransaction[]> {
+  filters: AdminDeletedTransactionFilters = {}
+): Promise<CursorPage<AdminDeletedTransaction>> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
+
+  let q = supabase
     .from("transaction_deletions")
     .select(
       `id,
        transaction_id,
        deleted_at,
        deleted_by_profile:profiles!deleted_by(full_name),
-       transactions!transaction_id(
+       transactions!transaction_id!inner(
          id, driver_id, vehicle_id, garage_id, type, amount, litres, points_earned, created_at,
-         vehicles(make_model), garages(name), profiles(full_name)
+         vehicles(make_model), garages(name), profiles!inner(full_name)
        )`
     )
-    .is("restored_at", null)
-    .order("deleted_at", { ascending: false })
-    .limit(limit);
+    .is("restored_at", null);
+
+  const term = sanitizeSearchTerm(filters.query);
+  if (term) {
+    q = q.filter(
+      "transactions.profiles.full_name",
+      "ilike",
+      `%${term}%`
+    );
+  }
+
+  if (cursor) {
+    q = q.or(cursorFilterAt(cursor, direction, "deleted_at"));
+  }
+
+  const { data, error } = await q
+    .order("deleted_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as Record<string, unknown>[])
-    .map((row) => {
-      const tx = (row.transactions as Record<string, unknown> | null) ?? null;
-      if (!tx) return null;
-      const base = mapTransaction(tx);
-      const driver =
-        (tx.profiles as { full_name?: string | null } | null) ?? null;
-      const deletedBy =
-        (row.deleted_by_profile as { full_name?: string | null } | null) ??
-        null;
-      return {
-        id: String(row.id),
-        transaction: { ...base, driver_name: driver?.full_name ?? null },
-        deleted_at: String(row.deleted_at),
-        deleted_by_name: deletedBy?.full_name ?? null,
-      } satisfies AdminDeletedTransaction;
-    })
-    .filter((row): row is AdminDeletedTransaction => row !== null);
-}
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor),
+    "deleted_at"
+  );
 
-export type Paginated<T> = {
-  rows: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  pageCount: number;
-};
+  return {
+    ...page,
+    rows: page.rows
+      .map((row) => {
+        const tx = (row.transactions as Record<string, unknown> | null) ?? null;
+        if (!tx) return null;
+        const base = mapTransaction(tx);
+        const driver =
+          (tx.profiles as { full_name?: string | null } | null) ?? null;
+        const deletedBy =
+          (row.deleted_by_profile as { full_name?: string | null } | null) ??
+          null;
+        return {
+          id: String(row.id),
+          transaction: { ...base, driver_name: driver?.full_name ?? null },
+          deleted_at: String(row.deleted_at),
+          deleted_by_name: deletedBy?.full_name ?? null,
+        } satisfies AdminDeletedTransaction;
+      })
+      .filter((row): row is AdminDeletedTransaction => row !== null),
+  };
+}
 
 export type PaymentProofStatus =
   | "pending"
@@ -1005,58 +1177,33 @@ export type AdminPaymentProof = {
   proof_url: string | null;
 };
 
-export type PaymentProofFilters = {
+export type PaymentProofFilters = CursorRequest & {
   status?: string;
   category?: string;
   query?: string;
   from?: string;
   to?: string;
-  page?: number;
-  pageSize?: number;
 };
-
-async function findMatchingProfileIds(query: string): Promise<string[]> {
-  const supabase = createAdminClient();
-  const term = query.trim().replace(/[%,]/g, "");
-  if (!term) return [];
-  const { data } = await supabase
-    .from("profiles")
-    .select("id")
-    .or(`full_name.ilike.%${term}%,fuel_code.ilike.%${term}%`);
-  return ((data ?? []) as { id: string }[]).map((row) => String(row.id));
-}
 
 export async function getAdminPaymentProofs(
   filters: PaymentProofFilters
-): Promise<Paginated<AdminPaymentProof>> {
+): Promise<CursorPage<AdminPaymentProof>> {
   const supabase = createAdminClient();
-  const page = Math.max(1, filters.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
-  const rangeFrom = (page - 1) * pageSize;
-  const rangeTo = rangeFrom + pageSize - 1;
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
 
-  const empty: Paginated<AdminPaymentProof> = {
-    rows: [],
-    total: 0,
-    page,
-    pageSize,
-    pageCount: 0,
-  };
-
-  let profileIds: string[] | null = null;
-  if (filters.query && filters.query.trim()) {
-    profileIds = await findMatchingProfileIds(filters.query);
-    if (profileIds.length === 0) return empty;
-  }
+  const term = sanitizeSearchTerm(filters.query);
+  const profileRelation = term
+    ? "profiles!profile_id!inner(full_name, fuel_code, fuel_balance)"
+    : "profiles!profile_id(full_name, fuel_code, fuel_balance)";
 
   let q = supabase
     .from("payment_proofs")
     .select(
-      "id, created_at, reviewed_at, reviewer_notes, status, category, filename, storage_path, profile_id, profiles!profile_id(full_name, fuel_code, fuel_balance)",
-      { count: "exact" }
-    )
-    .order("created_at", { ascending: false })
-    .range(rangeFrom, rangeTo);
+      `id, created_at, reviewed_at, reviewer_notes, status, category, filename, storage_path, profile_id, ${profileRelation}`
+    );
 
   if (filters.status && filters.status !== "all") {
     q = q.eq("status", filters.status);
@@ -1066,13 +1213,27 @@ export async function getAdminPaymentProofs(
   }
   if (filters.from) q = q.gte("created_at", filters.from);
   if (filters.to) q = q.lte("created_at", `${filters.to}T23:59:59.999Z`);
-  if (profileIds) q = q.in("profile_id", profileIds);
+  if (term) {
+    q = q.filter("profiles.full_name", "ilike", `%${term}%`);
+  }
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
 
-  const { data, error, count } = await q;
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
+
   if (error) throw new Error(error.message);
 
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
+  );
+
   const rows = await Promise.all(
-    ((data ?? []) as Record<string, unknown>[]).map(async (row) => {
+    page.rows.map(async (row) => {
       const profile =
         (row.profiles as {
           full_name?: string | null;
@@ -1105,82 +1266,64 @@ export async function getAdminPaymentProofs(
     })
   );
 
-  const total = count ?? 0;
-  return {
-    rows,
-    total,
-    page,
-    pageSize,
-    pageCount: Math.ceil(total / pageSize),
-  };
+  return { ...page, rows };
 }
 
-export type RepaymentHistoryFilters = {
+export type RepaymentHistoryFilters = CursorRequest & {
   type?: string;
   query?: string;
   from?: string;
   to?: string;
-  page?: number;
-  pageSize?: number;
 };
 
 export async function getAdminRepaymentTransactions(
   filters: RepaymentHistoryFilters
-): Promise<Paginated<AdminTransaction>> {
+): Promise<CursorPage<AdminTransaction>> {
   const supabase = createAdminClient();
-  const page = Math.max(1, filters.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
-  const rangeFrom = (page - 1) * pageSize;
-  const rangeTo = rangeFrom + pageSize - 1;
-
-  const empty: Paginated<AdminTransaction> = {
-    rows: [],
-    total: 0,
-    page,
-    pageSize,
-    pageCount: 0,
-  };
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
 
   const types =
     filters.type && filters.type !== "all"
       ? [filters.type]
       : ["fuel_repayment", "repair_repayment", "rental_repayment"];
 
-  let driverIds: string[] | null = null;
-  if (filters.query && filters.query.trim()) {
-    driverIds = await findMatchingProfileIds(filters.query);
-    if (driverIds.length === 0) return empty;
-  }
-
   let q = supabase
-    .from("active_transactions")
+    .from("admin_transactions_search")
     .select(
-      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at, driver_name",
-      { count: "exact" }
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at, driver_name"
     )
-    .in("type", types)
-    .order("created_at", { ascending: false })
-    .range(rangeFrom, rangeTo);
+    .in("type", types);
 
   if (filters.from) q = q.gte("created_at", filters.from);
   if (filters.to) q = q.lte("created_at", `${filters.to}T23:59:59.999Z`);
-  if (driverIds) q = q.in("driver_id", driverIds);
 
-  const { data, error, count } = await q;
+  const term = sanitizeSearchTerm(filters.query);
+  if (term) {
+    q = q.or(
+      `driver_name.ilike.%${term}%,driver_email.ilike.%${term}%,driver_phone.ilike.%${term}%`
+    );
+  }
+
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
+
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
+
   if (error) throw new Error(error.message);
 
-  const rows = ((data ?? []) as Record<string, unknown>[]).map(
-    mapActiveTransaction
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
   );
 
-  const total = count ?? 0;
-  return {
-    rows,
-    total,
-    page,
-    pageSize,
-    pageCount: Math.ceil(total / pageSize),
-  };
+  return { ...page, rows: page.rows.map(mapActiveTransaction) };
 }
 
 export async function getAdminPages(): Promise<PageRecord[]> {
@@ -1295,17 +1438,48 @@ export async function getAdminStats() {
   };
 }
 
-export async function getAdminLeads(): Promise<Lead[]> {
+export type AdminLeadFilters = CursorRequest & {
+  query?: string;
+  status?: string;
+};
+
+export async function getAdminLeads(
+  filters: AdminLeadFilters = {}
+): Promise<CursorPage<Lead>> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*, services(name)")
-    .order("created_at", { ascending: false });
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
+
+  let q = supabase.from("leads").select("*, services(name)");
+
+  if (filters.status && filters.status !== "all") {
+    q = q.eq("status", filters.status);
+  }
+
+  const term = sanitizeSearchTerm(filters.query);
+  if (term) {
+    q = q.or(
+      `full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`
+    );
+  }
+
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
+
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
 
   if (error) throw new Error(error.message);
-  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
-    mapLead(row)
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
   );
+  return { ...page, rows: page.rows.map(mapLead) };
 }
 
 export async function getAdminLead(id: string): Promise<Lead | null> {
@@ -1425,17 +1599,52 @@ function mapFormTemplate(row: Record<string, unknown>): FormTemplate {
   };
 }
 
-export async function getAdminSubmissions(): Promise<FormSubmission[]> {
+export type AdminSubmissionFilters = CursorRequest & {
+  query?: string;
+  status?: string;
+};
+
+export async function getAdminSubmissions(
+  filters: AdminSubmissionFilters = {}
+): Promise<CursorPage<FormSubmission>> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const pageSize = normalizePageSize(filters.pageSize);
+  const direction: CursorDirection =
+    filters.direction === "prev" ? "prev" : "next";
+  const cursor = decodeCursor(filters.cursor);
+
+  const term = sanitizeSearchTerm(filters.query);
+  const leadRelation = term
+    ? "leads!lead_id!inner(full_name, email)"
+    : "leads(full_name, email)";
+
+  let q = supabase
     .from("form_submissions")
-    .select("*, leads(full_name, email), form_templates(name)")
-    .order("created_at", { ascending: false });
+    .select(`*, ${leadRelation}, form_templates(name)`);
+
+  if (filters.status && filters.status !== "all") {
+    q = q.eq("status", filters.status);
+  }
+
+  if (term) {
+    q = q.filter("leads.full_name", "ilike", `%${term}%`);
+  }
+
+  if (cursor) q = q.or(cursorFilter(cursor, direction));
+
+  const { data, error } = await q
+    .order("created_at", { ascending: direction === "prev" })
+    .order("id", { ascending: direction === "prev" })
+    .limit(pageSize + 1);
 
   if (error) throw new Error(error.message);
-  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
-    mapSubmission(row)
+  const page = buildCursorPage(
+    (data ?? []) as Record<string, unknown>[],
+    direction,
+    pageSize,
+    Boolean(cursor)
   );
+  return { ...page, rows: page.rows.map(mapSubmission) };
 }
 
 export async function getSubmissionsForLead(

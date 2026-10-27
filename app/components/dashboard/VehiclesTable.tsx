@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Vehicle, VehicleStatus } from "@/lib/data/types";
+import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
 
 const statusMeta: Record<
   VehicleStatus,
@@ -27,15 +29,6 @@ const statusMeta: Record<
 
 const statusFilters = ["all", "active", "maintenance", "off_road"] as const;
 
-type SortKey =
-  | "make_model"
-  | "registration"
-  | "driver_name"
-  | "owner_name"
-  | "category"
-  | "weekly_rental"
-  | "status";
-
 function formatMoney(value: number | null): string {
   if (value === null || value === undefined) return "—";
   return new Intl.NumberFormat("en-ZA", {
@@ -45,76 +38,40 @@ function formatMoney(value: number | null): string {
   }).format(value);
 }
 
-function SortableHeader({
-  label,
-  column,
-  sortKey,
-  sortDir,
-  onToggle,
-  className = "",
+export function VehiclesTable({
+  vehicles,
+  pageInfo,
+  filters,
 }: {
-  label: string;
-  column: SortKey;
-  sortKey: SortKey;
-  sortDir: "asc" | "desc";
-  onToggle: (column: SortKey) => void;
-  className?: string;
+  vehicles: Vehicle[];
+  pageInfo: {
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    nextCursor: string | null;
+    prevCursor: string | null;
+  };
+  filters: { query: string; status: string };
 }) {
-  return (
-    <th className={`px-4 py-3 font-medium ${className}`}>
-      <button
-        type="button"
-        onClick={() => onToggle(column)}
-        className="inline-flex items-center gap-1 hover:text-navy"
-      >
-        {label}
-        <span className="text-[10px] text-textdark/40">
-          {sortKey === column ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
-        </span>
-      </button>
-    </th>
-  );
-}
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(filters.query);
 
-export function VehiclesTable({ vehicles }: { vehicles: Vehicle[] }) {
-  const [filter, setFilter] = useState<string>("all");
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("make_model");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir(key === "make_model" ? "asc" : "asc");
+  function navigate(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
     }
+    params.delete("cursor");
+    params.delete("dir");
+    router.push(`${pathname}?${params.toString()}`);
   }
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let rows = vehicles.filter((vehicle) => {
-      if (filter !== "all" && vehicle.status !== filter) return false;
-      if (!q) return true;
-      return [vehicle.make_model, vehicle.registration].some((value) =>
-        value?.toLowerCase().includes(q)
-      );
-    });
-
-    rows = [...rows].sort((a, b) => {
-      const aVal = a[sortKey] ?? "";
-      const bVal = b[sortKey] ?? "";
-      let cmp = 0;
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        cmp = aVal - bVal;
-      } else {
-        cmp = String(aVal).localeCompare(String(bVal));
-      }
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-
-    return rows;
-  }, [vehicles, filter, query, sortKey, sortDir]);
+  function applySearch(e: FormEvent) {
+    e.preventDefault();
+    navigate({ q: query.trim() || null });
+  }
 
   return (
     <div>
@@ -124,9 +81,11 @@ export function VehiclesTable({ vehicles }: { vehicles: Vehicle[] }) {
             <button
               key={value}
               type="button"
-              onClick={() => setFilter(value)}
+              onClick={() =>
+                navigate({ status: value === "all" ? null : value })
+              }
               className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                filter === value
+                filters.status === value
                   ? "bg-navy text-white border-navy"
                   : "bg-white text-textdark border-grey/40 hover:border-navy"
               }`}
@@ -135,17 +94,25 @@ export function VehiclesTable({ vehicles }: { vehicles: Vehicle[] }) {
             </button>
           ))}
         </div>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search vehicle or registration…"
-          className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
-        />
+        <form onSubmit={applySearch} className="flex gap-2 w-full md:w-auto">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search vehicle, registration or owner…"
+            className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy/90"
+          >
+            Search
+          </button>
+        </form>
       </div>
 
       <div className="bg-white border border-grey/40 rounded-2xl overflow-hidden">
-        {filtered.length === 0 ? (
+        {vehicles.length === 0 ? (
           <div className="p-10 text-center text-textdark/60">
             No vehicles match this filter.
           </div>
@@ -154,64 +121,26 @@ export function VehiclesTable({ vehicles }: { vehicles: Vehicle[] }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-grey/40 text-left text-textdark/60">
-                  <SortableHeader
-                    label="Vehicle"
-                    column="make_model"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                  />
-                  <SortableHeader
-                    label="Reg."
-                    column="registration"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                  />
-                  <SortableHeader
-                    label="Driver"
-                    column="driver_name"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden md:table-cell"
-                  />
-                  <SortableHeader
-                    label="Owner"
-                    column="owner_name"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden lg:table-cell"
-                  />
-                  <SortableHeader
-                    label="Category"
-                    column="category"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden lg:table-cell"
-                  />
-                  <SortableHeader
-                    label="Weekly Rental"
-                    column="weekly_rental"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden md:table-cell"
-                  />
-                  <SortableHeader
-                    label="Status"
-                    column="status"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                  />
+                  <th className="px-4 py-3 font-medium">Vehicle</th>
+                  <th className="px-4 py-3 font-medium">Reg.</th>
+                  <th className="hidden md:table-cell px-4 py-3 font-medium">
+                    Driver
+                  </th>
+                  <th className="hidden lg:table-cell px-4 py-3 font-medium">
+                    Owner
+                  </th>
+                  <th className="hidden lg:table-cell px-4 py-3 font-medium">
+                    Category
+                  </th>
+                  <th className="hidden md:table-cell px-4 py-3 font-medium">
+                    Weekly Rental
+                  </th>
+                  <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((vehicle) => {
+                {vehicles.map((vehicle) => {
                   const meta = statusMeta[vehicle.status];
                   return (
                     <tr
@@ -245,9 +174,7 @@ export function VehiclesTable({ vehicles }: { vehicles: Vehicle[] }) {
                         <span
                           className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold ${meta.badge}`}
                         >
-                          <span
-                            className={`h-2 w-2 rounded-full ${meta.dot}`}
-                          />
+                          <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
                           {meta.label}
                         </span>
                       </td>
@@ -266,6 +193,14 @@ export function VehiclesTable({ vehicles }: { vehicles: Vehicle[] }) {
             </table>
           </div>
         )}
+
+        <CursorPagination
+          hasNextPage={pageInfo.hasNextPage}
+          hasPreviousPage={pageInfo.hasPreviousPage}
+          nextCursor={pageInfo.nextCursor}
+          prevCursor={pageInfo.prevCursor}
+          rowCount={vehicles.length}
+        />
       </div>
     </div>
   );

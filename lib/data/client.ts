@@ -1,3 +1,4 @@
+import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DOCUMENT_CATEGORIES } from "@/lib/data/types";
 import type {
@@ -383,7 +384,8 @@ function getCurrentSastMonday2PM(): number {
 }
 
 export async function getClientRequiredActions(
-  userId: string
+  userId: string,
+  preloadedBalances?: ClientBalances | null
 ): Promise<ClientRequiredAction[]> {
   const supabase = createAdminClient();
 
@@ -397,7 +399,9 @@ export async function getClientRequiredActions(
       .from("documents")
       .select("category, storage_path, status")
       .eq("user_id", userId),
-    getClientBalances(userId),
+    preloadedBalances !== undefined
+      ? Promise.resolve(preloadedBalances)
+      : getClientBalances(userId),
   ]);
 
   const leadId = leadRes.data?.id ? String(leadRes.data.id) : null;

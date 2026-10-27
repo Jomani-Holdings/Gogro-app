@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { formatDateTime, formatMoney } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { AdminTransaction } from "@/lib/data/admin";
-import { PaginationControls } from "@/app/components/dashboard/PaginationControls";
+import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-3 py-2 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -19,18 +19,17 @@ const REPAYMENT_TYPES = [
 
 export function RepaymentHistoryTable({
   rows,
-  page,
-  pageSize,
-  pageCount,
-  total,
+  pageInfo,
   filters,
   rangeAll,
 }: {
   rows: AdminTransaction[];
-  page: number;
-  pageSize: number;
-  pageCount: number;
-  total: number;
+  pageInfo: {
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    nextCursor: string | null;
+    prevCursor: string | null;
+  };
   filters: { type: string; q: string; from: string; to: string };
   rangeAll: boolean;
 }) {
@@ -49,19 +48,21 @@ export function RepaymentHistoryTable({
       if (value === null || value === "") params.delete(key);
       else params.set(key, String(value));
     }
+    params.delete("cursor");
+    params.delete("dir");
     return `${pathname}?${params.toString()}`;
   }
 
   function applyFilters(e: FormEvent) {
     e.preventDefault();
-    router.push(hrefWith({ q, from, to, type, range: null, page: 1 }));
+    router.push(hrefWith({ q, from, to, type, range: null }));
   }
 
   return (
     <div className="bg-white border border-grey/40 rounded-2xl overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 px-4 pt-4">
         <Link
-          href={hrefWith({ range: null, from: null, to: null, page: 1 })}
+          href={hrefWith({ range: null, from: null, to: null })}
           className={
             !rangeAll
               ? "rounded-full border border-navy bg-navy/10 px-3 py-1.5 text-xs font-semibold text-navy"
@@ -71,7 +72,7 @@ export function RepaymentHistoryTable({
           Last 30 days
         </Link>
         <Link
-          href={hrefWith({ range: "all", from: null, to: null, page: 1 })}
+          href={hrefWith({ range: "all", from: null, to: null })}
           className={
             rangeAll
               ? "rounded-full border border-navy bg-navy/10 px-3 py-1.5 text-xs font-semibold text-navy"
@@ -165,12 +166,12 @@ export function RepaymentHistoryTable({
         </div>
       )}
 
-      <PaginationControls
-        currentPage={page}
-        pageCount={pageCount}
-        total={total}
-        pageSize={pageSize}
-        buildHref={(target) => hrefWith({ page: target })}
+      <CursorPagination
+        hasNextPage={pageInfo.hasNextPage}
+        hasPreviousPage={pageInfo.hasPreviousPage}
+        nextCursor={pageInfo.nextCursor}
+        prevCursor={pageInfo.prevCursor}
+        rowCount={rows.length}
       />
     </div>
   );

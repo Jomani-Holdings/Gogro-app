@@ -16,15 +16,26 @@ import { getWhatsAppLink } from "@/app/lib/site-config";
 
 export default async function ClientHomePage() {
   const profile = await requireClient();
-  const { lead, submissions } = await getClientLeadAndSubmissions(
-    profile.user_id
+  const [
+    { lead, submissions },
+    balances,
+    programme,
+    accountProfile,
+    breakdown,
+  ] = await Promise.all([
+    getClientLeadAndSubmissions(profile.user_id),
+    getClientBalances(profile.user_id),
+    getClientProgrammeContext(profile.user_id),
+    getClientAccountProfile(profile.user_id),
+    getClientDebtBreakdown(profile.user_id),
+  ]);
+  const requiredActions = await getClientRequiredActions(
+    profile.user_id,
+    balances
   );
-  const requiredActions = await getClientRequiredActions(profile.user_id);
-  const balances = await getClientBalances(profile.user_id);
-  const programme = await getClientProgrammeContext(profile.user_id);
-  const accountProfile = await getClientAccountProfile(profile.user_id);
-  const breakdown = await getClientDebtBreakdown(profile.user_id);
-  const pending = submissions.find((s) => s.status === "pending" || s.status === "draft");
+  const pending = submissions.find(
+    (s) => s.status === "pending" || s.status === "draft"
+  );
 
   const debtBuckets = breakdown
     ? [

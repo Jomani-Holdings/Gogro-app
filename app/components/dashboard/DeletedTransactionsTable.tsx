@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { AdminDeletedTransaction } from "@/lib/data/admin";
 import { restoreTransaction } from "@/app/dashboard/admin/transactions/actions";
+import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
 
 const typeStyles: Record<string, string> = {
   fuel_issue: "bg-orange/10 text-orange",
@@ -21,24 +22,37 @@ const typeStyles: Record<string, string> = {
 
 export function DeletedTransactionsTable({
   deleted,
+  pageInfo,
+  query,
 }: {
   deleted: AdminDeletedTransaction[];
+  pageInfo: {
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    nextCursor: string | null;
+    prevCursor: string | null;
+  };
+  query: string;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(query);
   const [pending, setPending] = useState<AdminDeletedTransaction | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return deleted;
-    return deleted.filter((item) => {
-      const tx = item.transaction;
-      return [tx.driver_name, tx.vehicle_name, tx.garage_name, tx.driver_id]
-        .some((value) => value?.toLowerCase().includes(q));
-    });
-  }, [deleted, query]);
+  function applySearch(e: FormEvent) {
+    e.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+    const term = search.trim();
+    if (term) params.set("q", term);
+    else params.delete("q");
+    params.set("tab", "deleted");
+    params.delete("cursor");
+    params.delete("dir");
+    router.push(`${pathname}?${params.toString()}`);
+  }
 
   async function handleRestore() {
     if (!pending) return;
@@ -62,20 +76,28 @@ export function DeletedTransactionsTable({
     <div>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
         <p className="text-sm text-textdark/60">
-          Deleted transactions are hidden from the driver&apos;s account. Restore
-          one to put it back in the active ledger.
+          Deleted transactions are hidden from the driver&apos;s account.
+          Restore one to put it back in the active ledger.
         </p>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search driver, vehicle, garage…"
-          className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
-        />
+        <form onSubmit={applySearch} className="flex gap-2 w-full md:w-auto">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search driver name…"
+            className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy/90"
+          >
+            Search
+          </button>
+        </form>
       </div>
 
       <div className="bg-white border border-grey/40 rounded-2xl overflow-hidden">
-        {filtered.length === 0 ? (
+        {deleted.length === 0 ? (
           <div className="p-10 text-center text-textdark/60">
             No deleted transactions.
           </div>
@@ -103,7 +125,7 @@ export function DeletedTransactionsTable({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item) => {
+                {deleted.map((item) => {
                   const tx = item.transaction;
                   return (
                     <tr
@@ -165,6 +187,14 @@ export function DeletedTransactionsTable({
             </table>
           </div>
         )}
+
+        <CursorPagination
+          hasNextPage={pageInfo.hasNextPage}
+          hasPreviousPage={pageInfo.hasPreviousPage}
+          nextCursor={pageInfo.nextCursor}
+          prevCursor={pageInfo.prevCursor}
+          rowCount={deleted.length}
+        />
       </div>
 
       {pending ? (

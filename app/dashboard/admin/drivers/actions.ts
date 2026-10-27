@@ -2,6 +2,7 @@
 
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -12,6 +13,74 @@ export type DriverActionResult = {
 };
 
 const DRIVER_STATUSES = ["pending", "active", "suspended", "inactive"];
+
+const driverStatusSchema = z.enum([
+  "pending",
+  "active",
+  "suspended",
+  "inactive",
+]);
+
+const driverEmailSchema = z
+  .string()
+  .trim()
+  .email("Enter a valid email address.");
+
+const driverProfilePatchSchema = z.object({
+  full_name: z.string().nullable(),
+  phone: z.string().nullable(),
+  driver_status: driverStatusSchema,
+  car_make_model: z.string().nullable(),
+  car_registration: z.string().nullable(),
+  id_number: z.string().nullable(),
+  suburb: z.string().nullable(),
+  license_valid: z.string().nullable(),
+  years_experience: z.string().nullable(),
+  preferred_vehicle_category: z.string().nullable(),
+  marketing_source: z.string().nullable(),
+  weekly_fuel_limit: z.number().positive().finite(),
+  fuel_code: z.string().max(50).nullable(),
+  fuel_garage_id: z.string().uuid().nullable(),
+  payment_due_day: z.enum([
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+  ]),
+  payment_due_time: z
+    .string()
+    .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Enter a valid payment time."),
+  payment_arrangement_due_date: z.string().nullable(),
+  payment_arrangement_notes: z.string().nullable(),
+  payment_arrangement_approved_by: z.string().uuid().nullable(),
+  updated_at: z.string(),
+});
+
+function validateProfilePatch(patch: Record<string, unknown>): string | null {
+  const parsed = driverProfilePatchSchema.safeParse(patch);
+  if (!parsed.success) {
+    return (
+      parsed.error.issues[0]?.message ?? "Please check the driver details."
+    );
+  }
+  return null;
+}
+
+async function isFuelCodeInUse(
+  admin: ReturnType<typeof createAdminClient>,
+  fuelCode: string | null,
+  excludeId?: string
+): Promise<boolean> {
+  if (!fuelCode) return false;
+  const { data } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("fuel_code", fuelCode)
+    .maybeSingle();
+
+  return Boolean(data && String(data.id) !== excludeId);
+}
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
@@ -121,10 +190,30 @@ async function syncDriverVehicle(
 export async function createDriver(formData: FormData): Promise<DriverActionResult> {
   const adminProfile = await requireAdmin();
 
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!email) return { ok: false, error: "Email is required." };
+  const emailResult = driverEmailSchema.safeParse(
+    String(formData.get("email") ?? "").trim().toLowerCase()
+  );
+  if (!emailResult.success) {
+    return {
+      ok: false,
+      error:
+        emailResult.error.issues[0]?.message ?? "Enter a valid email address.",
+    };
+  }
+  const email = emailResult.data;
 
   const admin = createAdminClient();
+
+  const patch = buildProfilePatch(formData, adminProfile.id, "inactive");
+  delete patch.email;
+
+  const patchError = validateProfilePatch(patch);
+  if (patchError) return { ok: false, error: patchError };
+
+  const fuelCode = patch.fuel_code ? String(patch.fuel_code) : null;
+  if (await isFuelCodeInUse(admin, fuelCode)) {
+    return { ok: false, error: "That fuel code is already in use." };
+  }
 
   const tempPassword = randomBytes(12).toString("base64url");
 
@@ -142,9 +231,6 @@ export async function createDriver(formData: FormData): Promise<DriverActionResu
 
   const userId = created.user?.id;
   if (!userId) return { ok: false, error: "Could not create user." };
-
-  const patch = buildProfilePatch(formData, adminProfile.id, "inactive");
-  delete patch.email;
 
   const { error } = await admin.from("profiles").upsert(
     {
@@ -178,27 +264,44 @@ export async function updateDriver(
 ): Promise<DriverActionResult> {
   const adminProfile = await requireAdmin();
 
-  const status = String(formData.get("driver_status") ?? "pending");
-  if (!DRIVER_STATUSES.includes(status)) {
+  const idResult = z.string().uuid().safeParse(id);
+  if (!idResult.success) {
+    return { ok: false, error: "Invalid driver." };
+  }
+  const driverId = idResult.data;
+
+  const statusResult = driverStatusSchema.safeParse(
+    String(formData.get("driver_status") ?? "pending")
+  );
+  if (!statusResult.success) {
     return { ok: false, error: "Invalid driver status." };
   }
 
   const patch = buildProfilePatch(formData, adminProfile.id);
   delete patch.email;
 
+  const patchError = validateProfilePatch(patch);
+  if (patchError) return { ok: false, error: patchError };
+
   const admin = createAdminClient();
+
+  const fuelCode = patch.fuel_code ? String(patch.fuel_code) : null;
+  if (await isFuelCodeInUse(admin, fuelCode, driverId)) {
+    return { ok: false, error: "That fuel code is already in use." };
+  }
+
   const { error } = await admin
     .from("profiles")
     .update(patch)
-    .eq("id", id);
+    .eq("id", driverId);
 
   if (error) return { ok: false, error: error.message };
 
-  const vehicleError = await syncDriverVehicle(admin, id, formData);
+  const vehicleError = await syncDriverVehicle(admin, driverId, formData);
   if (vehicleError) return { ok: false, error: vehicleError };
 
   revalidatePath("/dashboard/admin/drivers");
-  revalidatePath(`/dashboard/admin/drivers/${id}`);
+  revalidatePath(`/dashboard/admin/drivers/${driverId}`);
   revalidatePath("/dashboard/admin/vehicles");
   return { ok: true };
 }

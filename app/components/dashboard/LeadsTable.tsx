@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Lead } from "@/lib/data/types";
+import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
 
 const statusStyles: Record<string, string> = {
   new: "bg-orange/10 text-orange",
@@ -48,35 +50,81 @@ function formatDate(iso: string): string {
   });
 }
 
-export function LeadsTable({ leads }: { leads: Lead[] }) {
-  const [filter, setFilter] = useState<string>("all");
+export function LeadsTable({
+  leads,
+  pageInfo,
+  filters: activeFilters,
+}: {
+  leads: Lead[];
+  pageInfo: {
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    nextCursor: string | null;
+    prevCursor: string | null;
+  };
+  filters: { query: string; status: string };
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(activeFilters.query);
 
-  const filtered = useMemo(() => {
-    if (filter === "all") return leads;
-    return leads.filter((lead) => lead.status === filter);
-  }, [leads, filter]);
+  function navigate(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
+    }
+    params.delete("cursor");
+    params.delete("dir");
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  function applySearch(e: FormEvent) {
+    e.preventDefault();
+    navigate({ q: query.trim() || null });
+  }
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mb-6">
-        {filters.map((value) => (
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+        <div className="flex flex-wrap gap-2">
+          {filters.map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() =>
+                navigate({ status: value === "all" ? null : value })
+              }
+              className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                activeFilters.status === value
+                  ? "bg-navy text-white border-navy"
+                  : "bg-white text-textdark border-grey/40 hover:border-navy"
+              }`}
+            >
+              {value === "all" ? "All" : statusLabels[value]}
+            </button>
+          ))}
+        </div>
+        <form onSubmit={applySearch} className="flex gap-2 w-full md:w-auto">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name, email or phone…"
+            className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
+          />
           <button
-            key={value}
-            type="button"
-            onClick={() => setFilter(value)}
-            className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-              filter === value
-                ? "bg-navy text-white border-navy"
-                : "bg-white text-textdark border-grey/40 hover:border-navy"
-            }`}
+            type="submit"
+            className="shrink-0 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy/90"
           >
-            {value === "all" ? "All" : statusLabels[value]}
+            Search
           </button>
-        ))}
+        </form>
       </div>
 
       <div className="bg-white border border-grey/40 rounded-2xl overflow-hidden">
-        {filtered.length === 0 ? (
+        {leads.length === 0 ? (
           <div className="p-10 text-center text-textdark/60">
             No leads match this filter.
           </div>
@@ -99,7 +147,7 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((lead) => (
+              {leads.map((lead) => (
                 <tr
                   key={lead.id}
                   className="border-b border-grey/20 last:border-0 hover:bg-offwhite"
@@ -139,6 +187,14 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
             </tbody>
           </table>
         )}
+
+        <CursorPagination
+          hasNextPage={pageInfo.hasNextPage}
+          hasPreviousPage={pageInfo.hasPreviousPage}
+          nextCursor={pageInfo.nextCursor}
+          prevCursor={pageInfo.prevCursor}
+          rowCount={leads.length}
+        />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyUser } from "@/lib/notifications";
@@ -60,6 +61,25 @@ const CATEGORY_BY_TYPE: Record<
   balance_correction_increase: "penalty",
   balance_correction_decrease: "penalty",
 };
+
+const logTransactionSchema = z.object({
+  driver_id: z.string().uuid(),
+  type: z
+    .string()
+    .refine(
+      (value) => TRANSACTION_TYPES.some((t) => t.value === value),
+      "Invalid transaction type."
+    ),
+  amount: z.number().positive().finite(),
+  litres: z.number().nonnegative().finite().nullable(),
+  vehicle_id: z.string().uuid().nullable(),
+  garage_id: z.string().uuid().nullable(),
+  created_at: z.string().nullable(),
+  override_action: z.enum(["authorize", "unauthorized"]).nullable(),
+  skip_notification: z.boolean(),
+  points_earned: z.number().int().nonnegative(),
+  on_time: z.boolean(),
+});
 
 function transactionImpact(type: string, amount: number) {
   let sign = 0;
@@ -135,6 +155,27 @@ export async function logTransaction(
     litres = n;
   }
 
+  const parsed = logTransactionSchema.safeParse({
+    driver_id: driverId,
+    type,
+    amount,
+    litres,
+    vehicle_id: vehicleId,
+    garage_id: garageId,
+    created_at: createdRaw,
+    override_action: overrideAction,
+    skip_notification: skipNotification,
+    points_earned: pointsEarned,
+    on_time: onTime,
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid transaction.",
+    };
+  }
+
   const admin = createAdminClient();
 
   // Warn (then require an explicit choice) when a fuel issue would exceed the
@@ -185,6 +226,8 @@ export async function logTransaction(
 
   if (type === "fuel_issue" && overLimit) {
     insertPayload.authorized_overlimit = overrideAction === "authorize";
+    insertPayload.overlimit_acknowledged =
+      overrideAction === "authorize" || overrideAction === "unauthorized";
   }
 
   const { error } = await admin.from("transactions").insert(insertPayload);
