@@ -47,6 +47,12 @@ export default async function ClientHomePage() {
           label: "Penalties & Adjustments",
           amount: breakdown.penalties,
         },
+        {
+          key: "rewards",
+          label: "Rewards & Credits",
+          amount: breakdown.rewards,
+          variant: "credit" as const,
+        },
       ]
     : [];
 

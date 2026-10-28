@@ -29,6 +29,16 @@ const statusMeta: Record<
 
 const statusFilters = ["all", "active", "maintenance", "off_road"] as const;
 
+const fallbackStatusMeta = {
+  label: "Unknown",
+  dot: "bg-grey",
+  badge: "bg-grey/40 text-textdark",
+};
+
+function getStatusMeta(status: string) {
+  return statusMeta[status as VehicleStatus] ?? fallbackStatusMeta;
+}
+
 function formatMoney(value: number | null): string {
   if (value === null || value === undefined) return "—";
   return new Intl.NumberFormat("en-ZA", {
@@ -90,7 +100,7 @@ export function VehiclesTable({
                   : "bg-white text-textdark border-grey/40 hover:border-navy"
               }`}
             >
-              {value === "all" ? "All" : statusMeta[value].label}
+              {value === "all" ? "All" : getStatusMeta(value).label}
             </button>
           ))}
         </div>
@@ -141,7 +151,7 @@ export function VehiclesTable({
               </thead>
               <tbody>
                 {vehicles.map((vehicle) => {
-                  const meta = statusMeta[vehicle.status];
+                  const meta = getStatusMeta(vehicle.status);
                   return (
                     <tr
                       key={vehicle.id}

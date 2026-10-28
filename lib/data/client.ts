@@ -66,6 +66,7 @@ export type ClientDebtBreakdown = {
   repair: number;
   rental: number;
   penalties: number;
+  rewards: number;
   total: number;
 };
 
@@ -92,7 +93,14 @@ export async function getClientDebtBreakdown(
   const cycleEnd = cycle?.cycle_end;
 
   if (!cycleStart || !cycleEnd) {
-    return { fuel: 0, repair: 0, rental: 0, penalties: 0, total: 0 };
+    return {
+      fuel: 0,
+      repair: 0,
+      rental: 0,
+      penalties: 0,
+      rewards: 0,
+      total: 0,
+    };
   }
 
   const { data, error } = await supabase
@@ -107,6 +115,7 @@ export async function getClientDebtBreakdown(
   let repair = 0;
   let rental = 0;
   let penalties = 0;
+  let rewards = 0;
 
   for (const t of (data ?? []) as { type: string; amount: number }[]) {
     const amt = Number(t.amount ?? 0);
@@ -138,6 +147,9 @@ export async function getClientDebtBreakdown(
       case "balance_correction_decrease":
         penalties -= amt;
         break;
+      case "reward_credit":
+        rewards += amt;
+        break;
       default:
         break;
     }
@@ -148,7 +160,8 @@ export async function getClientDebtBreakdown(
     repair,
     rental,
     penalties,
-    total: fuel + repair + rental + penalties,
+    rewards,
+    total: fuel + repair + rental + penalties - rewards,
   };
 }
 

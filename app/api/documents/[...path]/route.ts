@@ -81,7 +81,7 @@ export async function GET(
     status: 200,
     headers: {
       "Content-Type": contentType,
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "private, no-store",
       "Content-Length": String(buffer.byteLength),
       "Content-Disposition": "inline",
     },

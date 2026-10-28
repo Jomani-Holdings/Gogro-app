@@ -5,7 +5,19 @@ import { revalidatePath } from "next/cache";
 import type { JSONContent } from "@tiptap/core";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DOCUMENTS_BUCKET, MAX_CONTRACT_FILE_SIZE, slugifyFilename } from "@/lib/media";
+import {
+  DOCUMENTS_BUCKET,
+  MAX_CONTRACT_FILE_SIZE,
+  sanitizeStorageKey,
+  slugifyFilename,
+} from "@/lib/media";
+import {
+  createSignedUpload,
+  storedObjectExists,
+  validateUpload,
+  type PrepareUploadResult,
+  type UploadFileInput,
+} from "@/lib/upload";
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
@@ -95,6 +107,26 @@ function validateFieldSchema(fields: unknown[]): string | null {
   return null;
 }
 
+export async function prepareContractUpload(
+  input: UploadFileInput
+): Promise<PrepareUploadResult> {
+  await requireAdmin();
+
+  const validationError = validateUpload(input, {
+    maxSize: MAX_CONTRACT_FILE_SIZE,
+    allowedMime: (type) => type === "application/pdf",
+    sizeMessage: "Contract PDF is larger than the 5MB limit.",
+    typeMessage: "Contract must be a PDF file.",
+  });
+  if (validationError) return { ok: false, error: validationError };
+
+  const storagePath = `documents/contracts/pending/${crypto.randomUUID()}-${slugifyFilename(
+    input.filename
+  )}`;
+
+  return createSignedUpload(DOCUMENTS_BUCKET, storagePath);
+}
+
 export async function saveFormTemplate(formData: FormData): Promise<void> {
   await requireAdmin();
   const admin = createAdminClient();
@@ -156,7 +188,12 @@ export async function saveFormTemplate(formData: FormData): Promise<void> {
     if (error) throw new Error(error.message);
   }
 
-  await handleContractDocument(admin, formId, formData);
+  await handleContractDocument(
+    admin,
+    formId,
+    formData.get("contract_path"),
+    formData.get("remove_contract") === "on"
+  );
 
   revalidatePath("/dashboard/admin/forms");
   redirect("/dashboard/admin/forms");
@@ -165,12 +202,19 @@ export async function saveFormTemplate(formData: FormData): Promise<void> {
 async function handleContractDocument(
   admin: ReturnType<typeof createAdminClient>,
   formId: string,
-  formData: FormData
+  rawPath: FormDataEntryValue | null,
+  remove: boolean
 ) {
-  const remove = formData.get("remove_contract") === "on";
-  const file = formData.get("contract_document");
+  const providedPath = typeof rawPath === "string" ? rawPath.trim() : "";
+  const safeProvidedPath = providedPath
+    ? sanitizeStorageKey(providedPath, DOCUMENTS_BUCKET)
+    : null;
 
   if (remove) {
+    if (safeProvidedPath?.startsWith("documents/contracts/pending/")) {
+      await admin.storage.from(DOCUMENTS_BUCKET).remove([safeProvidedPath]);
+    }
+
     const { data: existing } = await admin
       .from("form_templates")
       .select("contract_document_path")
@@ -188,33 +232,34 @@ async function handleContractDocument(
     return;
   }
 
-  if (!(file instanceof File) || file.size === 0) return;
+  if (!providedPath) return;
 
-  if (file.size > MAX_CONTRACT_FILE_SIZE) {
-    throw new Error("Contract PDF is larger than the 5MB limit.");
+  if (!safeProvidedPath?.startsWith("documents/contracts/pending/")) {
+    throw new Error("Invalid contract upload path.");
   }
-  if (file.type !== "application/pdf") {
-    throw new Error("Contract must be a PDF file.");
+  if (!(await storedObjectExists(DOCUMENTS_BUCKET, safeProvidedPath))) {
+    throw new Error("Contract upload not found. Please try again.");
   }
 
-  const storagePath = `documents/contracts/${formId}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const filename = safeProvidedPath.split("/").pop() || "contract.pdf";
+  const storagePath = `documents/contracts/${formId}/${filename}`;
 
-  const { error: uploadError } = await admin.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(storagePath, bytes, {
-      contentType: "application/pdf",
-      cacheControl: "3600",
-      upsert: false,
-    });
-  if (uploadError) throw new Error(uploadError.message);
+  if (safeProvidedPath !== storagePath) {
+    const { error: moveError } = await admin.storage
+      .from(DOCUMENTS_BUCKET)
+      .move(safeProvidedPath, storagePath);
+    if (moveError) throw new Error(moveError.message);
+  }
 
   const { data: existing } = await admin
     .from("form_templates")
     .select("contract_document_path")
     .eq("id", formId)
     .maybeSingle();
-  if (existing?.contract_document_path) {
+  if (
+    existing?.contract_document_path &&
+    String(existing.contract_document_path) !== storagePath
+  ) {
     await admin.storage
       .from(DOCUMENTS_BUCKET)
       .remove([String(existing.contract_document_path)]);

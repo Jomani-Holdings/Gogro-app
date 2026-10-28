@@ -100,6 +100,10 @@ function formatRand(value: number): string {
   })}`;
 }
 
+function overLimitWarning(limit: number): string {
+  return `This fuel purchase takes the driver's weekly usage above their R${limit.toLocaleString("en-ZA")} weekly fuel limit. Authorize the override, or process it as unauthorized to log the R100 penalty.`;
+}
+
 function revalidateTransactionPaths(driverId: string | null) {
   revalidatePath("/dashboard/admin/transactions");
   revalidatePath("/dashboard/admin");
@@ -201,7 +205,7 @@ export async function logTransaction(
       if (overrideAction !== "authorize" && overrideAction !== "unauthorized") {
         return {
           ok: false,
-          warning: `This fuel purchase takes the driver's weekly usage above their R${weeklyFuelLimit.toLocaleString("en-ZA")} weekly fuel limit. Authorize the override, or process it as unauthorized to log the R100 penalty.`,
+          warning: overLimitWarning(weeklyFuelLimit),
           requiresConfirmation: true,
         };
       }
@@ -213,47 +217,36 @@ export async function logTransaction(
       ? new Date(createdRaw).toISOString()
       : new Date().toISOString();
 
-  const insertPayload: Record<string, unknown> = {
-    driver_id: driverId,
-    vehicle_id: vehicleId,
-    garage_id: garageId,
-    type,
-    amount,
-    litres,
-    points_earned: pointsEarned,
-    created_at,
-  };
+  const { data: logData, error } = await admin.rpc("log_transaction", {
+    p_driver_id: driverId,
+    p_type: type,
+    p_amount: amount,
+    p_litres: litres,
+    p_vehicle_id: vehicleId,
+    p_garage_id: garageId,
+    p_created_at: created_at,
+    p_overlimit_action: overLimit ? overrideAction : null,
+    p_points_earned: pointsEarned,
+    p_on_time: onTime,
+  });
 
-  if (type === "fuel_issue" && overLimit) {
-    insertPayload.authorized_overlimit = overrideAction === "authorize";
-    insertPayload.overlimit_acknowledged =
-      overrideAction === "authorize" || overrideAction === "unauthorized";
+  if (error) {
+    if (error.message.includes("Weekly fuel limit exceeded")) {
+      return {
+        ok: false,
+        warning: overLimitWarning(weeklyFuelLimit),
+        requiresConfirmation: true,
+      };
+    }
+    return { ok: false, error: error.message };
   }
 
-  const { error } = await admin.from("transactions").insert(insertPayload);
-  if (error) return { ok: false, error: error.message };
-
-  // Streaks are intentionally manual: the admin ticks "on-time" when logging
-  // the repayment.
-  const REPAYMENT_TYPES = new Set([
-    "fuel_repayment",
-    "repair_repayment",
-    "rental_repayment",
-  ]);
-  if (onTime && REPAYMENT_TYPES.has(type)) {
-    const { data: streakProfile } = await admin
-      .from("profiles")
-      .select("current_streak")
-      .eq("id", driverId)
-      .maybeSingle();
-    const nextStreak = Number(streakProfile?.current_streak ?? 0) + 1;
-    await admin
-      .from("profiles")
-      .update({
-        current_streak: nextStreak,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", driverId);
+  const logResult = logData as { ok?: boolean; error?: string } | null;
+  if (!logResult?.ok) {
+    return {
+      ok: false,
+      error: logResult?.error ?? "Could not log the transaction.",
+    };
   }
 
   const typeLabel =
@@ -279,39 +272,6 @@ export async function logTransaction(
 
   // Reactivation is a manual admin action. Logging a fuel repayment updates
   // balances only; it never flips the driver back to active.
-
-  // Unauthorized over-limit fuel issue: auto-log the R100 penalty fee.
-  if (type === "fuel_issue" && overLimit && overrideAction === "unauthorized") {
-    const penaltyPayload: Record<string, unknown> = {
-      driver_id: driverId,
-      vehicle_id: vehicleId,
-      garage_id: garageId,
-      type: "penalty_fee",
-      amount: 100,
-      created_at,
-    };
-
-    const { error: penaltyError } = await admin
-      .from("transactions")
-      .insert(penaltyPayload);
-    if (penaltyError) return { ok: false, error: penaltyError.message };
-
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("overlimit_count")
-      .eq("id", driverId)
-      .maybeSingle();
-    const currentCount = Number(profile?.overlimit_count ?? 0);
-
-    await admin
-      .from("profiles")
-      .update({
-        overlimit_count: currentCount + 1,
-        last_penalty_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", driverId);
-  }
 
   revalidatePath("/dashboard/admin/drivers");
   revalidatePath(`/dashboard/admin/drivers/${driverId}`);

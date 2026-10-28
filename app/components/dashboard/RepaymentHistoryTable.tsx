@@ -3,10 +3,11 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { formatDateTime, formatMoney } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { AdminTransaction } from "@/lib/data/admin";
 import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
+import { SignedAmount } from "@/app/components/dashboard/SignedAmount";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-3 py-2 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -156,8 +157,8 @@ export function RepaymentHistoryTable({
                   <td className="px-4 py-3 text-textdark/70">
                     {TRANSACTION_LABELS[tx.type] ?? tx.type}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-success">
-                    {formatMoney(tx.amount, 2)}
+                  <td className="px-4 py-3 text-right">
+                    <SignedAmount type={tx.type} amount={tx.amount} />
                   </td>
                 </tr>
               ))}

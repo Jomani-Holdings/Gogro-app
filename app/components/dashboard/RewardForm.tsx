@@ -3,8 +3,12 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { saveReward } from "@/app/dashboard/admin/rewards/actions";
+import {
+  prepareRewardImageUpload,
+  saveReward,
+} from "@/app/dashboard/admin/rewards/actions";
 import { MAX_REWARD_IMAGE_SIZE, mediaUrl } from "@/lib/media";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 import {
   MEMBERSHIP_TIERS,
   POINT_REWARD_TYPES,
@@ -176,7 +180,34 @@ export function RewardForm({
       formData.append("existing_teaser_image_path", reward.teaser_image_path);
     }
 
+    formData.delete("image");
+    formData.delete("teaser_image");
+
     try {
+      if (imageFile) {
+        const prepared = await prepareRewardImageUpload({
+          filename: imageFile.name,
+          contentType: imageFile.type,
+          size: imageFile.size,
+        });
+        if (!prepared.ok) throw new Error(prepared.error);
+
+        await uploadFileToSignedUrl(prepared.upload, imageFile, "31536000");
+        formData.set("image_path", prepared.upload.path);
+      }
+
+      if (teaserFile) {
+        const prepared = await prepareRewardImageUpload({
+          filename: teaserFile.name,
+          contentType: teaserFile.type,
+          size: teaserFile.size,
+        });
+        if (!prepared.ok) throw new Error(prepared.error);
+
+        await uploadFileToSignedUrl(prepared.upload, teaserFile, "31536000");
+        formData.set("teaser_image_path", prepared.upload.path);
+      }
+
       await saveReward(formData);
     } catch (err) {
       setError(
