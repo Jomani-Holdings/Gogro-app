@@ -2,8 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { GALLERY_BUCKET, MAX_GARAGE_IMAGE_SIZE, slugifyFilename } from "@/lib/media";
+import {
+  GALLERY_BUCKET,
+  MAX_GARAGE_IMAGE_SIZE,
+  sanitizeStorageKey,
+  slugifyFilename,
+} from "@/lib/media";
+import {
+  createSignedUpload,
+  storedObjectExists,
+  validateUpload,
+  type SignedUpload,
+  type UploadFileInput,
+} from "@/lib/upload";
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
@@ -150,39 +163,63 @@ function revalidateGaragePaths(): void {
   revalidatePath("/dashboard/client/garages");
 }
 
+export type GarageImagePrepareResult =
+  | { ok: true; upload: SignedUpload; garageId: string }
+  | { ok: false; error: string };
+
+export async function prepareGarageImageUpload(
+  input: UploadFileInput & { garageId?: string }
+): Promise<GarageImagePrepareResult> {
+  await requireAdmin();
+
+  const validationError = validateUpload(input, {
+    maxSize: MAX_GARAGE_IMAGE_SIZE,
+    allowedMime: (type) => type.startsWith("image/"),
+    sizeMessage: "Image is larger than the 5MB limit.",
+    typeMessage: "Please choose an image file.",
+  });
+  if (validationError) return { ok: false, error: validationError };
+
+  const garageId =
+    input.garageId && input.garageId !== "new"
+      ? input.garageId
+      : crypto.randomUUID();
+  const result = await createSignedUpload(
+    GALLERY_BUCKET,
+    garageImageKey(garageId, input.filename)
+  );
+
+  if (!result.ok) return result;
+  return { ...result, garageId };
+}
+
 export async function saveGarage(formData: FormData): Promise<void> {
+  await requireAdmin();
+
   const id = String(formData.get("id") ?? "");
   const isNew = id === "new" || !id;
   const admin = createAdminClient();
 
-  const rawFile = formData.get("image");
-  const file = rawFile instanceof File ? rawFile : null;
   const removeImage = formData.get("remove_image") === "on";
   const existingImagePath = clean(formData.get("existing_image_path"));
 
-  if (file && file.size > 0) {
-    if (file.size > MAX_GARAGE_IMAGE_SIZE) {
-      throw new Error("Image is larger than the 5MB limit.");
-    }
-    if (!file.type.startsWith("image/")) {
-      throw new Error("Please choose an image file.");
-    }
-  }
+  const garageId = isNew
+    ? String(formData.get("garage_id") ?? "") || crypto.randomUUID()
+    : id;
 
-  const garageId = isNew ? crypto.randomUUID() : id;
-
+  const rawStoragePath = String(formData.get("storage_path") ?? "").trim();
   let newImagePath: string | null = null;
-  if (file && file.size > 0) {
-    newImagePath = garageImageKey(garageId, file.name);
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await admin.storage
-      .from(GALLERY_BUCKET)
-      .upload(newImagePath, bytes, {
-        contentType: file.type,
-        cacheControl: "31536000",
-        upsert: false,
-      });
-    if (uploadError) throw new Error(uploadError.message);
+
+  if (rawStoragePath) {
+    const safePath = sanitizeStorageKey(rawStoragePath, GALLERY_BUCKET);
+    const expectedPrefix = `${GALLERY_BUCKET}/garages/${garageId}/`;
+    if (!safePath || !safePath.startsWith(expectedPrefix)) {
+      throw new Error("Invalid upload path.");
+    }
+    if (!(await storedObjectExists(GALLERY_BUCKET, safePath))) {
+      throw new Error("Upload not found. Please try again.");
+    }
+    newImagePath = safePath;
   }
 
   const patch: Record<string, unknown> = {

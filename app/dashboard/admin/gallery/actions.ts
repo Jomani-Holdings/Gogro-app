@@ -2,8 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { GALLERY_BUCKET, MAX_GALLERY_FILE_SIZE, slugifyFilename } from "@/lib/media";
+import {
+  GALLERY_BUCKET,
+  MAX_GALLERY_FILE_SIZE,
+  sanitizeStorageKey,
+  slugifyFilename,
+} from "@/lib/media";
+import {
+  createSignedUpload,
+  storedObjectExists,
+  validateUpload,
+  type PrepareUploadResult,
+  type UploadFileInput,
+} from "@/lib/upload";
 
 function clean(value: FormDataEntryValue | null): string | null {
   if (value === null) return null;
@@ -15,7 +28,25 @@ function storageKey(fileName: string): string {
   return `${GALLERY_BUCKET}/${crypto.randomUUID()}-${slugifyFilename(fileName)}`;
 }
 
+export async function prepareGalleryImageUpload(
+  input: UploadFileInput
+): Promise<PrepareUploadResult> {
+  await requireAdmin();
+
+  const validationError = validateUpload(input, {
+    maxSize: MAX_GALLERY_FILE_SIZE,
+    allowedMime: (type) => type.startsWith("image/"),
+    sizeMessage: "Image is larger than the 5MB limit.",
+    typeMessage: "Please choose an image file.",
+  });
+  if (validationError) return { ok: false, error: validationError };
+
+  return createSignedUpload(GALLERY_BUCKET, storageKey(input.filename));
+}
+
 export async function saveGalleryImage(formData: FormData): Promise<void> {
+  await requireAdmin();
+
   const id = String(formData.get("id") ?? "");
   const isNew = id === "new" || !id;
   const admin = createAdminClient();
@@ -26,24 +57,17 @@ export async function saveGalleryImage(formData: FormData): Promise<void> {
   const sortOrder = Number(formData.get("sort_order") ?? 0);
   const active = formData.get("active") === "on";
 
-  const rawFile = formData.get("image");
-  const file = rawFile instanceof File ? rawFile : null;
+  const rawStoragePath = String(formData.get("storage_path") ?? "").trim();
+  const rawFilename = String(formData.get("filename") ?? "").trim();
   let storagePath: string | null = null;
 
-  if (file && file.size > 0) {
-    if (file.size > MAX_GALLERY_FILE_SIZE) {
-      throw new Error("Image is larger than the 5MB limit.");
+  if (rawStoragePath) {
+    const safePath = sanitizeStorageKey(rawStoragePath, GALLERY_BUCKET);
+    if (!safePath) throw new Error("Invalid upload path.");
+    if (!(await storedObjectExists(GALLERY_BUCKET, safePath))) {
+      throw new Error("Upload not found. Please try again.");
     }
-    storagePath = storageKey(file.name);
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await admin.storage
-      .from(GALLERY_BUCKET)
-      .upload(storagePath, bytes, {
-        contentType: file.type,
-        cacheControl: "31536000",
-        upsert: false,
-      });
-    if (uploadError) throw new Error(uploadError.message);
+    storagePath = safePath;
   }
 
   if (isNew) {
@@ -52,14 +76,18 @@ export async function saveGalleryImage(formData: FormData): Promise<void> {
     }
     const { error } = await admin.from("galleries").insert({
       storage_path: storagePath,
-      filename: String(file?.name ?? storagePath.split("/").pop() ?? ""),
+      filename:
+        rawFilename || storagePath.split("/").pop() || "image",
       caption,
       alt_text: altText,
       description,
       sort_order: sortOrder,
       active,
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      await admin.storage.from(GALLERY_BUCKET).remove([storagePath]);
+      throw new Error(error.message);
+    }
   } else {
     const patch: Record<string, unknown> = {
       caption,
@@ -71,10 +99,15 @@ export async function saveGalleryImage(formData: FormData): Promise<void> {
     };
     if (storagePath) {
       patch.storage_path = storagePath;
-      patch.filename = String(file?.name ?? "");
+      patch.filename = rawFilename || storagePath.split("/").pop() || "";
     }
     const { error } = await admin.from("galleries").update(patch).eq("id", id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (storagePath) {
+        await admin.storage.from(GALLERY_BUCKET).remove([storagePath]);
+      }
+      throw new Error(error.message);
+    }
 
     if (storagePath) {
       const oldPath = String(formData.get("existing_storage_path") ?? "");

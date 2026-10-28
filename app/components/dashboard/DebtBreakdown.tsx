@@ -4,6 +4,7 @@ export type DebtBucket = {
   key: string;
   label: string;
   amount: number;
+  variant?: "debt" | "credit";
 };
 
 export function DebtBreakdown({
@@ -32,26 +33,37 @@ export function DebtBreakdown({
       </div>
 
       <div className="mt-5 space-y-4">
-        {buckets.map((bucket) => (
-          <div key={bucket.key}>
-            <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="font-medium text-textdark">{bucket.label}</span>
-              <span
-                className={`font-semibold ${
-                  bucket.amount > 0 ? "text-error" : "text-textdark"
-                }`}
-              >
-                {formatMoney(bucket.amount, 2)}
-              </span>
+        {buckets.map((bucket) => {
+          const isCredit = bucket.variant === "credit";
+          return (
+            <div key={bucket.key}>
+              <div className="flex items-center justify-between text-sm mb-1.5">
+                <span className="font-medium text-textdark">{bucket.label}</span>
+                <span
+                  className={`font-semibold ${
+                    isCredit
+                      ? "text-success"
+                      : bucket.amount > 0
+                        ? "text-error"
+                        : "text-textdark"
+                  }`}
+                >
+                  {isCredit && bucket.amount > 0
+                    ? `-${formatMoney(bucket.amount, 2)}`
+                    : formatMoney(bucket.amount, 2)}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-grey/30 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${
+                    isCredit ? "bg-success" : "bg-orange"
+                  }`}
+                  style={{ width: `${Math.max(bucket.amount, 0) / max * 100}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2 rounded-full bg-grey/30 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-orange"
-                style={{ width: `${Math.max(bucket.amount, 0) / max * 100}%` }}
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

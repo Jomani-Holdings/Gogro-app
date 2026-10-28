@@ -7,8 +7,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   REWARDS_BUCKET,
   MAX_REWARD_IMAGE_SIZE,
+  sanitizeStorageKey,
   slugifyFilename,
 } from "@/lib/media";
+import {
+  createSignedUpload,
+  storedObjectExists,
+  validateUpload,
+  type PrepareUploadResult,
+  type UploadFileInput,
+} from "@/lib/upload";
 import { rewardSchema } from "@/lib/validation/rewards";
 
 function clean(value: FormDataEntryValue | null): string | null {
@@ -35,29 +43,20 @@ function storageKey(fileName: string): string {
   return `${REWARDS_BUCKET}/${crypto.randomUUID()}-${slugifyFilename(fileName)}`;
 }
 
-async function uploadImage(
-  admin: ReturnType<typeof createAdminClient>,
-  file: File
-): Promise<string> {
-  if (file.size > MAX_REWARD_IMAGE_SIZE) {
-    throw new Error("Image is larger than the 5MB limit.");
-  }
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Please choose an image file.");
-  }
+export async function prepareRewardImageUpload(
+  input: UploadFileInput
+): Promise<PrepareUploadResult> {
+  await requireAdmin();
 
-  const path = storageKey(file.name);
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const { error } = await admin.storage
-    .from(REWARDS_BUCKET)
-    .upload(path, bytes, {
-      contentType: file.type,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-  if (error) throw new Error(error.message);
+  const validationError = validateUpload(input, {
+    maxSize: MAX_REWARD_IMAGE_SIZE,
+    allowedMime: (type) => type.startsWith("image/"),
+    sizeMessage: "Image is larger than the 5MB limit.",
+    typeMessage: "Please choose an image file.",
+  });
+  if (validationError) return { ok: false, error: validationError };
 
-  return path;
+  return createSignedUpload(REWARDS_BUCKET, storageKey(input.filename));
 }
 
 function revalidateRewards(): void {
@@ -101,17 +100,35 @@ export async function saveReward(formData: FormData): Promise<void> {
   const input = parsed.data;
   const admin = createAdminClient();
 
-  const rawImage = formData.get("image");
-  const imageFile = rawImage instanceof File && rawImage.size > 0 ? rawImage : null;
-  const rawTeaser = formData.get("teaser_image");
-  const teaserFile =
-    rawTeaser instanceof File && rawTeaser.size > 0 ? rawTeaser : null;
+  const rawImagePath = String(formData.get("image_path") ?? "").trim();
+  const rawTeaserPath = String(
+    formData.get("teaser_image_path") ?? ""
+  ).trim();
 
   let imagePath: string | null = null;
   let teaserImagePath: string | null = null;
 
-  if (imageFile) imagePath = await uploadImage(admin, imageFile);
-  if (teaserFile) teaserImagePath = await uploadImage(admin, teaserFile);
+  if (rawImagePath) {
+    const safePath = sanitizeStorageKey(rawImagePath, REWARDS_BUCKET);
+    if (!safePath) throw new Error("Invalid image upload path.");
+    if (!(await storedObjectExists(REWARDS_BUCKET, safePath))) {
+      throw new Error("Image upload not found. Please try again.");
+    }
+    imagePath = safePath;
+  }
+
+  if (rawTeaserPath) {
+    const safePath = sanitizeStorageKey(rawTeaserPath, REWARDS_BUCKET);
+    if (!safePath) throw new Error("Invalid teaser image upload path.");
+    if (!(await storedObjectExists(REWARDS_BUCKET, safePath))) {
+      throw new Error("Teaser image upload not found. Please try again.");
+    }
+    teaserImagePath = safePath;
+  }
+
+  const newPaths = [imagePath, teaserImagePath].filter(
+    (path): path is string => Boolean(path)
+  );
 
   const patch: Record<string, unknown> = {
     status: input.status,
@@ -144,7 +161,12 @@ export async function saveReward(formData: FormData): Promise<void> {
     if (teaserImagePath) patch.teaser_image_path = teaserImagePath;
 
     const { error } = await admin.from("rewards").insert(patch);
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (newPaths.length > 0) {
+        await admin.storage.from(REWARDS_BUCKET).remove(newPaths);
+      }
+      throw new Error(error.message);
+    }
   } else {
     if (!patch.publish_at) {
       throw new Error("Enter a valid publish date.");
@@ -157,7 +179,12 @@ export async function saveReward(formData: FormData): Promise<void> {
     if (teaserImagePath) patch.teaser_image_path = teaserImagePath;
 
     const { error } = await admin.from("rewards").update(patch).eq("id", id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (newPaths.length > 0) {
+        await admin.storage.from(REWARDS_BUCKET).remove(newPaths);
+      }
+      throw new Error(error.message);
+    }
 
     if (imagePath && previousImage && previousImage !== imagePath) {
       await admin.storage.from(REWARDS_BUCKET).remove([previousImage]);

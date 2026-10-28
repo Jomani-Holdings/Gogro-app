@@ -232,25 +232,16 @@ export async function createDriver(formData: FormData): Promise<DriverActionResu
   const userId = created.user?.id;
   if (!userId) return { ok: false, error: "Could not create user." };
 
-  const { error } = await admin.from("profiles").upsert(
-    {
-      user_id: userId,
-      role: "client",
-      ...patch,
-    },
-    { onConflict: "user_id" }
-  );
+  const { error } = await admin.rpc("create_driver_profile_and_vehicle", {
+    p_user_id: userId,
+    p_patch: patch,
+    p_vehicle_make_model: clean(formData.get("car_make_model")),
+    p_vehicle_registration: clean(formData.get("car_registration")),
+  });
 
-  if (error) return { ok: false, error: error.message };
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (profile) {
-    const vehicleError = await syncDriverVehicle(admin, profile.id, formData);
-    if (vehicleError) return { ok: false, error: vehicleError };
+  if (error) {
+    await admin.auth.admin.deleteUser(userId);
+    return { ok: false, error: error.message };
   }
 
   revalidatePath("/dashboard/admin/drivers");
@@ -365,66 +356,37 @@ export async function awardReferralPoints(
     };
   }
 
+  const referralIdResult = z.string().uuid().safeParse(referralId);
+  if (!referralIdResult.success) {
+    return { ok: false, error: "Invalid referral." };
+  }
+
   const admin = createAdminClient();
 
-  const { data: referral, error: referralError } = await admin
-    .from("driver_referrals")
-    .select("id, referrer_id, points_earned")
-    .eq("id", referralId)
-    .maybeSingle();
+  const { data, error } = await admin.rpc("award_referral_points", {
+    p_referral_id: referralIdResult.data,
+    p_points: points,
+  });
 
-  if (referralError || !referral) {
+  if (error) return { ok: false, error: error.message };
+
+  const result = data as {
+    ok?: boolean;
+    error?: string;
+    referrer_id?: string;
+  } | null;
+
+  if (!result?.ok) {
     return {
       ok: false,
-      error: referralError?.message ?? "Referral not found.",
+      error: result?.error ?? "Could not award referral points.",
     };
-  }
-
-  const referrerId = String(referral.referrer_id);
-
-  const { error: updateReferralError } = await admin
-    .from("driver_referrals")
-    .update({
-      points_earned: Number(referral.points_earned ?? 0) + points,
-      status: "rewarded",
-      reward_processed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", referralId);
-
-  if (updateReferralError) {
-    return { ok: false, error: updateReferralError.message };
-  }
-
-  const { data: profile, error: profileError } = await admin
-    .from("profiles")
-    .select("points_balance, lifetime_points_earned")
-    .eq("id", referrerId)
-    .maybeSingle();
-
-  if (profileError || !profile) {
-    return {
-      ok: false,
-      error: profileError?.message ?? "Referrer not found.",
-    };
-  }
-
-  const { error: updateProfileError } = await admin
-    .from("profiles")
-    .update({
-      points_balance: Number(profile.points_balance ?? 0) + points,
-      lifetime_points_earned:
-        Number(profile.lifetime_points_earned ?? 0) + points,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", referrerId);
-
-  if (updateProfileError) {
-    return { ok: false, error: updateProfileError.message };
   }
 
   revalidatePath("/dashboard/admin/drivers");
-  revalidatePath(`/dashboard/admin/drivers/${referrerId}`);
+  if (result.referrer_id) {
+    revalidatePath(`/dashboard/admin/drivers/${result.referrer_id}`);
+  }
   revalidatePath("/dashboard/client/rewards");
   return { ok: true };
 }

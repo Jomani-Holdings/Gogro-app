@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2, X } from "lucide-react";
-import { updateAvatar, deleteAvatar } from "@/app/dashboard/settings-actions";
+import { updateAvatar, deleteAvatar, prepareAvatarUpload } from "@/app/dashboard/settings-actions";
 import { avatarUrl, MAX_AVATAR_SIZE } from "@/lib/media";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png"];
 
@@ -97,16 +98,32 @@ export function AvatarEditor({
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
     startTransition(async () => {
-      const result = await updateAvatar(formData);
-      resetFileInput();
-      if (!result.ok) {
-        setError(result.message ?? "Upload failed. Please try again.");
-        return;
+      try {
+        const prepared = await prepareAvatarUpload({
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        });
+        if (!prepared.ok) {
+          setError(prepared.error);
+          return;
+        }
+
+        await uploadFileToSignedUrl(prepared.upload, file, "3600");
+        const result = await updateAvatar(prepared.upload.path);
+        if (!result.ok) {
+          setError(result.message ?? "Upload failed. Please try again.");
+          return;
+        }
+        reportSuccess("Profile photo updated.");
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Upload failed. Please try again."
+        );
+      } finally {
+        resetFileInput();
       }
-      reportSuccess("Profile photo updated.");
     });
   }
 

@@ -3,8 +3,9 @@ import {
   getClientTransactions,
   getClientBalances,
 } from "@/lib/data/client";
-import { formatMoney, formatDateTime, formatBalance } from "@/lib/utils";
+import { formatDateTime, formatBalance } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
+import { SignedAmount } from "@/app/components/dashboard/SignedAmount";
 
 const typeStyles: Record<string, string> = {
   fuel_issue: "bg-orange/10 text-orange",
@@ -150,8 +151,8 @@ export default async function ClientLedgerPage() {
                     <td className="px-4 py-3 text-textdark/70">
                       {tx.litres !== null ? `${tx.litres} L` : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-textdark">
-                      {formatMoney(tx.amount, 2)}
+                    <td className="px-4 py-3 text-right">
+                      <SignedAmount type={tx.type} amount={tx.amount} />
                       {tx.points_earned > 0 ? (
                         <span className="block text-xs font-semibold text-success">
                           +{tx.points_earned} pts

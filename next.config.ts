@@ -3,13 +3,28 @@ import { withSerwist } from "@serwist/turbopack";
 
 const isDev = process.env.NODE_ENV === "development";
 
+const fallbackSupabaseOrigin = "https://bawhymljrkxnxqcotdws.supabase.co";
+let supabaseOrigin = fallbackSupabaseOrigin;
+let supabaseWsOrigin = fallbackSupabaseOrigin.replace(/^https:/, "wss:");
+
+if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  try {
+    const supabaseUrl = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL);
+    supabaseOrigin = supabaseUrl.origin;
+    supabaseWsOrigin = `wss://${supabaseUrl.host}`;
+  } catch {
+    supabaseOrigin = fallbackSupabaseOrigin;
+    supabaseWsOrigin = fallbackSupabaseOrigin.replace(/^https:/, "wss:");
+  }
+}
+
 const cspHeader = `
   default-src 'self';
   script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""};
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' data: blob: https://*.supabase.co https://bawhymljrkxnxqcotdws.supabase.co https://maps.google.com https://fonts.gstatic.com;
+  img-src 'self' data: blob: ${supabaseOrigin} https://maps.google.com https://fonts.gstatic.com;
   font-src 'self' data: https://fonts.gstatic.com;
-  connect-src 'self' https://*.supabase.co https://bawhymljrkxnxqcotdws.supabase.co wss://*.supabase.co wss://bawhymljrkxnxqcotdws.supabase.co https://maps.google.com;
+  connect-src 'self' ${supabaseOrigin} ${supabaseWsOrigin} https://maps.google.com;
   frame-src https://maps.google.com https://www.google.com;
   object-src 'none';
   base-uri 'self';
@@ -21,7 +36,7 @@ const cspHeader = `
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
-      bodySizeLimit: "6mb",
+      bodySizeLimit: "2mb",
     },
   },
   async headers() {

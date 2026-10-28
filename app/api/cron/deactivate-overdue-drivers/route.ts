@@ -30,38 +30,19 @@ export async function GET(req: Request) {
 
   const admin = createAdminClient();
 
-  const { data: affected, error: selectError } = await admin
+  const { count, error: updateError } = await admin
     .from("profiles")
-    .select("id")
+    .update(
+      {
+        driver_status: "inactive",
+        suspended: false,
+        updated_at: new Date().toISOString(),
+      },
+      { count: "exact" }
+    )
     .eq("role", "client")
     .eq("driver_status", "active")
     .gt("fuel_balance", 0);
-
-  if (selectError) {
-    return NextResponse.json(
-      { ok: false, error: selectError.message },
-      { status: 500 }
-    );
-  }
-
-  const ids = (affected ?? []).map((row) => String((row as { id: string }).id));
-
-  if (ids.length === 0) {
-    return NextResponse.json({ ok: true, deactivated: 0 });
-  }
-
-  const { data: updated, error: updateError } = await admin
-    .from("profiles")
-    .update({
-      driver_status: "inactive",
-      suspended: false,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("role", "client")
-    .eq("driver_status", "active")
-    .gt("fuel_balance", 0)
-    .in("id", ids)
-    .select("id");
 
   if (updateError) {
     return NextResponse.json(
@@ -72,6 +53,6 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    deactivated: updated?.length ?? 0,
+    deactivated: count ?? 0,
   });
 }

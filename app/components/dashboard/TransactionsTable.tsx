@@ -3,11 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { formatMoney, formatDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { Transaction } from "@/lib/data/types";
 import { deleteTransaction } from "@/app/dashboard/admin/transactions/actions";
 import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
+import { SignedAmount } from "@/app/components/dashboard/SignedAmount";
 
 export type AdminTransactionRow = Transaction & { driver_name: string | null };
 
@@ -20,6 +21,8 @@ const typeStyles: Record<string, string> = {
   repair_repayment: "bg-success/10 text-success",
   reward_credit: "bg-success/10 text-success",
   rental_fee: "bg-navy/10 text-navy",
+  rental_repayment: "bg-success/10 text-success",
+  penalty_fee: "bg-error/10 text-error",
   opening_balance: "bg-grey/40 text-textdark",
   balance_correction_increase: "bg-blue-600/10 text-blue-600",
   balance_correction_decrease: "bg-error/10 text-error",
@@ -210,8 +213,8 @@ export function TransactionsTable({
                     <td className="px-4 py-3 text-textdark/70">
                       {tx.litres !== null ? `${tx.litres} L` : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-textdark">
-                      {formatMoney(tx.amount, 2)}
+                    <td className="px-4 py-3 text-right">
+                      <SignedAmount type={tx.type} amount={tx.amount} />
                       {tx.points_earned > 0 ? (
                         <span className="block text-xs font-semibold text-success">
                           +{tx.points_earned} pts
@@ -261,7 +264,7 @@ export function TransactionsTable({
               </p>
               <p className="text-textdark/60">
                 {TRANSACTION_LABELS[pending.type] ?? pending.type} ·{" "}
-                {formatMoney(pending.amount, 2)} ·{" "}
+                <SignedAmount type={pending.type} amount={pending.amount} /> ·{" "}
                 {formatDateTime(pending.created_at)}
               </p>
             </div>

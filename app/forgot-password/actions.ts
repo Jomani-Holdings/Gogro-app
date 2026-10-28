@@ -1,12 +1,15 @@
 "use server";
 
 import { Resend } from "resend";
+import {
+  isRateLimited,
+  recordAuthAttempt,
+} from "@/lib/auth-attempts";
 import { escapeHtml, type EmailVariables } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTemplateBySlug, sendEmail } from "@/lib/mail";
 
 const CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-const MAX_REQUESTS_PER_HOUR = 3;
 
 export type ResetActionState = {
   ok: boolean;
@@ -31,18 +34,14 @@ export async function requestPasswordResetCode(
 
   const admin = createAdminClient();
 
-  const { count } = await admin
-    .from("password_reset_codes")
-    .select("id", { count: "exact", head: true })
-    .eq("email", email)
-    .gte("created_at", new Date(Date.now() - 3600 * 1000).toISOString());
-
-  if ((count ?? 0) >= MAX_REQUESTS_PER_HOUR) {
+  if (await isRateLimited(email, "password_reset")) {
     return {
       ok: false,
       error: "Too many reset requests for this email. Please try again later.",
     };
   }
+
+  await recordAuthAttempt(email, "password_reset", true);
 
   const { data: profile } = await admin
     .from("profiles")

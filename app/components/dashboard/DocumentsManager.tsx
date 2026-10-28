@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  prepareAdminDocumentUpload,
   uploadDocument,
   setDocumentStatus,
   deleteDocument,
@@ -10,6 +11,7 @@ import {
 import { RequestDocumentsModal } from "@/app/components/dashboard/RequestDocumentsModal";
 import { DOCUMENT_CATEGORIES, type Document } from "@/lib/data/types";
 import { documentUrl, MAX_DOCUMENT_FILE_SIZE } from "@/lib/media";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-yellow/20 text-textdark",
@@ -60,24 +62,33 @@ export function DocumentsManager({
 
     setUploadingCategory(category);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.append("lead_id", leadId ?? "");
-      formData.append("user_id", userId ?? "");
-      formData.append("category", category);
-      formData.append("file", file);
       try {
-        const result = await uploadDocument(formData);
+        const prepared = await prepareAdminDocumentUpload({
+          leadId: leadId ?? "",
+          userId: userId ?? "",
+          category,
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        });
+        if (!prepared.ok) {
+          setUploadError(prepared.error);
+          return;
+        }
+
+        await uploadFileToSignedUrl(prepared.upload, file, "3600");
+        const result = await uploadDocument({
+          leadId: leadId ?? "",
+          userId: userId ?? "",
+          category,
+          path: prepared.upload.path,
+          filename: file.name,
+        });
         if (!result.ok) setUploadError(result.error ?? "Upload failed.");
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Upload failed.";
-        if (message.toLowerCase().includes("body exceeded")) {
-          setUploadError(
-            "File is too large. Please upload a file under 2MB."
-          );
-        } else {
-          setUploadError(message);
-        }
+        setUploadError(message);
       }
       setUploadingCategory(null);
       if (fileRefs.current[category]) fileRefs.current[category]!.value = "";

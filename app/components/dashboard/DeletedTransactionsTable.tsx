@@ -3,18 +3,22 @@
 import { useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { formatMoney, formatDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { AdminDeletedTransaction } from "@/lib/data/admin";
 import { restoreTransaction } from "@/app/dashboard/admin/transactions/actions";
 import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
+import { SignedAmount } from "@/app/components/dashboard/SignedAmount";
 
 const typeStyles: Record<string, string> = {
   fuel_issue: "bg-orange/10 text-orange",
   repair_issue: "bg-yellow/20 text-textdark",
   fuel_repayment: "bg-success/10 text-success",
   repair_repayment: "bg-success/10 text-success",
+  reward_credit: "bg-success/10 text-success",
   rental_fee: "bg-navy/10 text-navy",
+  rental_repayment: "bg-success/10 text-success",
+  penalty_fee: "bg-error/10 text-error",
   opening_balance: "bg-grey/40 text-textdark",
   balance_correction_increase: "bg-blue-600/10 text-blue-600",
   balance_correction_decrease: "bg-error/10 text-error",
@@ -162,8 +166,8 @@ export function DeletedTransactionsTable({
                       <td className="hidden lg:table-cell px-4 py-3 text-textdark/70">
                         {tx.garage_name ?? "—"}
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-textdark">
-                        {formatMoney(tx.amount, 2)}
+                      <td className="px-4 py-3 text-right">
+                        <SignedAmount type={tx.type} amount={tx.amount} />
                       </td>
                       <td className="hidden md:table-cell px-4 py-3 text-textdark/70">
                         {item.deleted_by_name ?? "—"}
@@ -215,8 +219,12 @@ export function DeletedTransactionsTable({
               <p className="text-textdark/60">
                 {TRANSACTION_LABELS[pending.transaction.type] ??
                   pending.transaction.type}{" "}
-                · {formatMoney(pending.transaction.amount, 2)} ·{" "}
-                {formatDateTime(pending.transaction.created_at)}
+                ·{" "}
+                <SignedAmount
+                  type={pending.transaction.type}
+                  amount={pending.transaction.amount}
+                />{" "}
+                · {formatDateTime(pending.transaction.created_at)}
               </p>
             </div>
 
