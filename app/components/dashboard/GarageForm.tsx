@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  prepareGarageImageUpload,
   saveGarage,
 } from "@/app/dashboard/admin/cms-actions";
 import { mediaUrl, MAX_GARAGE_IMAGE_SIZE } from "@/lib/media";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 import type { PartnerType } from "@/lib/data/types";
 
 const inputClass =
@@ -77,11 +79,25 @@ export function GarageForm({
     setError(null);
 
     const formData = new FormData(event.currentTarget as HTMLFormElement);
+    formData.delete("image");
     if (existingImagePath) formData.append("existing_image_path", existingImagePath);
     if (removeImage) formData.append("remove_image", "on");
-    if (file) formData.append("image", file);
 
     try {
+      if (file) {
+        const prepared = await prepareGarageImageUpload({
+          garageId: garage?.id ?? "new",
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        });
+        if (!prepared.ok) throw new Error(prepared.error);
+
+        await uploadFileToSignedUrl(prepared.upload, file, "31536000");
+        formData.append("storage_path", prepared.upload.path);
+        formData.append("garage_id", prepared.garageId);
+      }
+
       await saveGarage(formData);
     } catch (err) {
       setError(

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { GALLERY_BUCKET, REWARDS_BUCKET } from "@/lib/media";
+import {
+  GALLERY_BUCKET,
+  REWARDS_BUCKET,
+  sanitizeStorageKey,
+} from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +38,16 @@ export async function GET(
 ) {
   const { path } = await ctx.params;
   const segments = Array.isArray(path) ? path : [path];
-  const key = segments.join("/");
+  const key = sanitizeStorageKey(segments.join("/"));
+
+  if (!key) {
+    return new NextResponse("Not found", { status: 404 });
+  }
 
   const isGallery = key.startsWith(`${GALLERY_BUCKET}/`);
   const isReward = key.startsWith(`${REWARDS_BUCKET}/`);
 
-  if (!key || (!isGallery && !isReward)) {
+  if (!isGallery && !isReward) {
     return new NextResponse("Not found", { status: 404 });
   }
 

@@ -10,8 +10,15 @@ import { getTemplateBySlug, sendEmail } from "@/lib/mail";
 import {
   DOCUMENTS_BUCKET,
   MAX_DOCUMENT_FILE_SIZE,
+  sanitizeStorageKey,
   slugifyFilename,
 } from "@/lib/media";
+import {
+  createSignedUpload,
+  storedObjectExists,
+  validateUpload,
+  type PrepareUploadResult,
+} from "@/lib/upload";
 import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/lib/data/types";
 
 export type DocumentActionResult = {
@@ -116,52 +123,82 @@ export async function requestDocuments(
   return { ok: true };
 }
 
-export async function uploadDocument(
-  formData: FormData
-): Promise<DocumentActionResult> {
+export async function prepareAdminDocumentUpload(input: {
+  leadId: string;
+  userId: string;
+  category: string;
+  filename: string;
+  contentType: string;
+  size: number;
+}): Promise<PrepareUploadResult> {
   await requireAdmin();
 
-  const leadId = String(formData.get("lead_id") ?? "");
-  const userId = String(formData.get("user_id") ?? "");
-  const category = String(formData.get("category") ?? "") as DocumentCategory;
+  const category = input.category as DocumentCategory;
   if (!VALID_CATEGORIES.includes(category)) {
     return { ok: false, error: "Invalid document category." };
   }
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Please choose a file." };
-  }
-  if (file.size > MAX_DOCUMENT_FILE_SIZE) {
-    return { ok: false, error: "File is larger than the 2MB limit." };
-  }
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return { ok: false, error: "Only PDF, JPG or PNG files are allowed." };
+  const validationError = validateUpload(input, {
+    maxSize: MAX_DOCUMENT_FILE_SIZE,
+    allowedMime: (type) => ALLOWED_TYPES.includes(type),
+    sizeMessage: "File is larger than the 2MB limit.",
+    typeMessage: "Only PDF, JPG or PNG files are allowed.",
+  });
+  if (validationError) return { ok: false, error: validationError };
+
+  const folder = input.leadId || (input.userId ? `user-${input.userId}` : "");
+  if (!folder) {
+    return { ok: false, error: "Select a client before uploading." };
   }
 
+  const storagePath = `documents/${folder}/${category}/${crypto.randomUUID()}-${slugifyFilename(
+    input.filename
+  )}`;
+
+  return createSignedUpload(DOCUMENTS_BUCKET, storagePath);
+}
+
+export async function uploadDocument(input: {
+  leadId: string;
+  userId: string;
+  category: string;
+  path: string;
+  filename: string;
+}): Promise<DocumentActionResult> {
+  await requireAdmin();
+
+  const category = input.category as DocumentCategory;
+  if (!VALID_CATEGORIES.includes(category)) {
+    return { ok: false, error: "Invalid document category." };
+  }
+
+  const folder = input.leadId || (input.userId ? `user-${input.userId}` : "");
+  if (!folder) {
+    return { ok: false, error: "Select a client before uploading." };
+  }
+
+  const safePath = sanitizeStorageKey(input.path, DOCUMENTS_BUCKET);
+  const expectedPrefix = `documents/${folder}/${category}/`;
+  if (!safePath || !safePath.startsWith(expectedPrefix)) {
+    return { ok: false, error: "Invalid upload path." };
+  }
+  if (!(await storedObjectExists(DOCUMENTS_BUCKET, safePath))) {
+    return { ok: false, error: "Upload not found. Please try again." };
+  }
+
+  const filename = input.filename.trim() || safePath.split("/").pop() || "file";
   const admin = createAdminClient();
-  const storagePath = `documents/${leadId}/${category}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
-  const bytes = Buffer.from(await file.arrayBuffer());
-
-  const { error: uploadError } = await admin.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(storagePath, bytes, {
-      contentType: file.type,
-      cacheControl: "3600",
-      upsert: false,
-    });
-  if (uploadError) return { ok: false, error: uploadError.message };
 
   const { error } = await admin.from("documents").insert({
-    lead_id: leadId || null,
-    user_id: userId || null,
+    lead_id: input.leadId || null,
+    user_id: input.userId || null,
     category,
-    filename: file.name,
-    storage_path: storagePath,
+    filename,
+    storage_path: safePath,
     status: "pending",
   });
   if (error) {
-    await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
+    await admin.storage.from(DOCUMENTS_BUCKET).remove([safePath]);
     return { ok: false, error: error.message };
   }
 

@@ -3,9 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
-import { uploadClientDocument } from "@/app/dashboard/client/actions";
+import {
+  prepareClientDocumentUpload,
+  uploadClientDocument,
+} from "@/app/dashboard/client/actions";
 import { DOCUMENT_CATEGORIES, type Document } from "@/lib/data/types";
-import { documentUrl, MAX_CLIENT_DOCUMENT_SIZE } from "@/lib/media";
+import {
+  documentUrl,
+  MAX_CLIENT_DOCUMENT_SIZE,
+} from "@/lib/media";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-yellow/20 text-textdark",
@@ -60,20 +67,29 @@ export function ClientDocumentsUpload({
 
     setUploading(category);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.append("category", category);
-      formData.append("file", file);
       try {
-        const result = await uploadClientDocument(formData);
+        const prepared = await prepareClientDocumentUpload({
+          category,
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        });
+        if (!prepared.ok) {
+          setError(prepared.error);
+          return;
+        }
+
+        await uploadFileToSignedUrl(prepared.upload, file, "3600");
+        const result = await uploadClientDocument({
+          path: prepared.upload.path,
+          category,
+          filename: file.name,
+        });
         if (!result.ok) setError(result.error ?? "Upload failed.");
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Upload failed.";
-        if (message.toLowerCase().includes("body exceeded")) {
-          setError("File is too large. Please upload a file under 2MB.");
-        } else {
-          setError(message);
-        }
+        setError(message);
       }
       setUploading(null);
       router.refresh();

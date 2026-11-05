@@ -2,9 +2,28 @@ import Link from "next/link";
 import { getAdminDrivers, getAdminGarageOptions } from "@/lib/data/admin";
 import { DriversTable } from "@/app/components/dashboard/DriversTable";
 
-export default async function AdminDriversPage() {
-  const [drivers, garages] = await Promise.all([
-    getAdminDrivers(),
+export default async function AdminDriversPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const cursor = typeof params.cursor === "string" ? params.cursor : undefined;
+  const direction = params.dir === "prev" ? "prev" : "next";
+  const query = typeof params.q === "string" ? params.q : "";
+  const status = typeof params.status === "string" ? params.status : "all";
+  const garage = typeof params.garage === "string" ? params.garage : "all";
+  const suspended = params.suspended === "1";
+
+  const [page, garages] = await Promise.all([
+    getAdminDrivers({
+      cursor,
+      direction,
+      query,
+      status,
+      garage,
+      suspended: suspended ? true : undefined,
+    }),
     getAdminGarageOptions(),
   ]);
 
@@ -28,7 +47,12 @@ export default async function AdminDriversPage() {
       </div>
 
       <div className="mt-8">
-        <DriversTable drivers={drivers} garages={garages} />
+        <DriversTable
+          drivers={page.rows}
+          garages={garages}
+          pageInfo={page}
+          filters={{ query, status, garage, suspended }}
+        />
       </div>
     </div>
   );

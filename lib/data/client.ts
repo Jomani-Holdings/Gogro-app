@@ -1,3 +1,4 @@
+import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DOCUMENT_CATEGORIES } from "@/lib/data/types";
 import type {
@@ -65,6 +66,7 @@ export type ClientDebtBreakdown = {
   repair: number;
   rental: number;
   penalties: number;
+  rewards: number;
   total: number;
 };
 
@@ -91,7 +93,14 @@ export async function getClientDebtBreakdown(
   const cycleEnd = cycle?.cycle_end;
 
   if (!cycleStart || !cycleEnd) {
-    return { fuel: 0, repair: 0, rental: 0, penalties: 0, total: 0 };
+    return {
+      fuel: 0,
+      repair: 0,
+      rental: 0,
+      penalties: 0,
+      rewards: 0,
+      total: 0,
+    };
   }
 
   const { data, error } = await supabase
@@ -106,6 +115,7 @@ export async function getClientDebtBreakdown(
   let repair = 0;
   let rental = 0;
   let penalties = 0;
+  let rewards = 0;
 
   for (const t of (data ?? []) as { type: string; amount: number }[]) {
     const amt = Number(t.amount ?? 0);
@@ -137,6 +147,9 @@ export async function getClientDebtBreakdown(
       case "balance_correction_decrease":
         penalties -= amt;
         break;
+      case "reward_credit":
+        rewards += amt;
+        break;
       default:
         break;
     }
@@ -147,7 +160,8 @@ export async function getClientDebtBreakdown(
     repair,
     rental,
     penalties,
-    total: fuel + repair + rental + penalties,
+    rewards,
+    total: fuel + repair + rental + penalties - rewards,
   };
 }
 
@@ -383,7 +397,8 @@ function getCurrentSastMonday2PM(): number {
 }
 
 export async function getClientRequiredActions(
-  userId: string
+  userId: string,
+  preloadedBalances?: ClientBalances | null
 ): Promise<ClientRequiredAction[]> {
   const supabase = createAdminClient();
 
@@ -397,7 +412,9 @@ export async function getClientRequiredActions(
       .from("documents")
       .select("category, storage_path, status")
       .eq("user_id", userId),
-    getClientBalances(userId),
+    preloadedBalances !== undefined
+      ? Promise.resolve(preloadedBalances)
+      : getClientBalances(userId),
   ]);
 
   const leadId = leadRes.data?.id ? String(leadRes.data.id) : null;

@@ -4,9 +4,11 @@ import { useRef, useState, useTransition, type ChangeEvent } from "react";
 import { FileText, MessageCircle } from "lucide-react";
 import {
   deletePaymentProof,
+  preparePaymentProofUpload,
   uploadPaymentProof,
 } from "@/app/dashboard/client/actions";
 import { siteConfig } from "@/app/lib/site-config";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -117,24 +119,44 @@ export function SupportQueryForm({
     if (!selected) return;
 
     const previousId = uploaded?.id ?? null;
-    const formData = new FormData();
-    formData.append("file", selected);
 
     startUpload(async () => {
-      const result = await uploadPaymentProof(formData);
-      if (!result.ok || !result.id || !result.signedUrl) {
-        setError(result.error ?? "Could not upload your proof of payment.");
-        return;
+      try {
+        const prepared = await preparePaymentProofUpload({
+          filename: selected.name,
+          contentType: selected.type,
+          size: selected.size,
+        });
+        if (!prepared.ok) {
+          setError(prepared.error);
+          return;
+        }
+
+        await uploadFileToSignedUrl(prepared.upload, selected, "3600");
+        const result = await uploadPaymentProof({
+          path: prepared.upload.path,
+          filename: selected.name,
+        });
+        if (!result.ok || !result.id || !result.signedUrl) {
+          setError(result.error ?? "Could not upload your proof of payment.");
+          return;
+        }
+        if (previousId) {
+          await deletePaymentProof(previousId);
+        }
+        setUploaded({
+          id: result.id,
+          signedUrl: result.signedUrl,
+          filename: result.filename ?? selected.name,
+        });
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not upload your proof of payment."
+        );
       }
-      if (previousId) {
-        await deletePaymentProof(previousId);
-      }
-      setUploaded({
-        id: result.id,
-        signedUrl: result.signedUrl,
-        filename: result.filename ?? selected.name,
-      });
-      if (fileInputRef.current) fileInputRef.current.value = "";
     });
   }
 

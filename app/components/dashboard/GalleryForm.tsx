@@ -3,9 +3,13 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { saveGalleryImage } from "@/app/dashboard/admin/gallery/actions";
+import {
+  prepareGalleryImageUpload,
+  saveGalleryImage,
+} from "@/app/dashboard/admin/gallery/actions";
 import { MAX_GALLERY_FILE_SIZE } from "@/lib/media";
 import { mediaUrl } from "@/lib/media";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 
 const inputClass =
   "w-full rounded-lg border border-grey/60 bg-white px-4 py-3 text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60";
@@ -84,9 +88,21 @@ export function GalleryForm({
     formData.append("sort_order", String(sortOrder));
     formData.append("active", active ? "on" : "off");
     if (image?.storage_path) formData.append("existing_storage_path", image.storage_path);
-    if (file) formData.append("image", file);
 
     try {
+      if (file) {
+        const prepared = await prepareGalleryImageUpload({
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        });
+        if (!prepared.ok) throw new Error(prepared.error);
+
+        await uploadFileToSignedUrl(prepared.upload, file, "31536000");
+        formData.append("storage_path", prepared.upload.path);
+        formData.append("filename", file.name);
+      }
+
       await saveGalleryImage(formData);
     } catch (err) {
       setError(

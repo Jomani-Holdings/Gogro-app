@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { AdminDriver } from "@/lib/data/admin";
+import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-yellow/20 text-textdark",
@@ -18,18 +20,13 @@ const statusLabels: Record<string, string> = {
   inactive: "Inactive",
 };
 
-const statusFilters = ["all", "pending", "active", "suspended", "inactive"] as const;
-
-type SortKey =
-  | "full_name"
-  | "phone"
-  | "car_make_model"
-  | "weekly_fuel_limit"
-  | "fuel_balance"
-  | "fuel_garage_name"
-  | "fuel_code"
-  | "driver_status"
-  | "created_at";
+const statusFilters = [
+  "all",
+  "pending",
+  "active",
+  "suspended",
+  "inactive",
+] as const;
 
 function formatDate(iso: string): string {
   if (!iso) return "—";
@@ -49,93 +46,48 @@ function formatMoney(value: number | null): string {
   }).format(value);
 }
 
-function SortableHeader({
-  label,
-  column,
-  sortKey,
-  sortDir,
-  onToggle,
-  className = "",
-}: {
-  label: string;
-  column: SortKey;
-  sortKey: SortKey;
-  sortDir: "asc" | "desc";
-  onToggle: (column: SortKey) => void;
-  className?: string;
-}) {
-  return (
-    <th className={`px-4 py-3 font-medium ${className}`}>
-      <button
-        type="button"
-        onClick={() => onToggle(column)}
-        className="inline-flex items-center gap-1 hover:text-navy"
-      >
-        {label}
-        <span className="text-[10px] text-textdark/40">
-          {sortKey === column ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
-        </span>
-      </button>
-    </th>
-  );
-}
-
 export function DriversTable({
   drivers,
   garages,
+  pageInfo,
+  filters,
 }: {
   drivers: AdminDriver[];
   garages: { id: string; name: string }[];
+  pageInfo: {
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    nextCursor: string | null;
+    prevCursor: string | null;
+  };
+  filters: {
+    query: string;
+    status: string;
+    garage: string;
+    suspended: boolean;
+  };
 }) {
-  const [filter, setFilter] = useState<string>("all");
-  const [suspendedOnly, setSuspendedOnly] = useState(false);
-  const [garageFilter, setGarageFilter] = useState<string>("all");
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("created_at");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(filters.query);
+  const [garage, setGarage] = useState(filters.garage);
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir(key === "full_name" ? "asc" : "desc");
+  function navigate(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
     }
+    params.delete("cursor");
+    params.delete("dir");
+    router.push(`${pathname}?${params.toString()}`);
   }
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let rows = drivers.filter((driver) => {
-      if (suspendedOnly && !driver.suspended) return false;
-      if (filter !== "all" && driver.driver_status !== filter) return false;
-      if (garageFilter !== "all" && driver.fuel_garage_id !== garageFilter)
-        return false;
-      if (!q) return true;
-      return [
-        driver.full_name,
-        driver.email,
-        driver.phone,
-        driver.fuel_code,
-        driver.car_make_model,
-        driver.car_registration,
-        driver.fuel_garage_name,
-      ].some((value) => value?.toLowerCase().includes(q));
-    });
-
-    rows = [...rows].sort((a, b) => {
-      const aVal = a[sortKey] ?? "";
-      const bVal = b[sortKey] ?? "";
-      let cmp = 0;
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        cmp = aVal - bVal;
-      } else {
-        cmp = String(aVal).localeCompare(String(bVal));
-      }
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-
-    return rows;
-  }, [drivers, filter, query, sortKey, sortDir, suspendedOnly, garageFilter]);
+  function applySearch(e: FormEvent) {
+    e.preventDefault();
+    navigate({ q: query.trim() || null });
+  }
 
   return (
     <div>
@@ -145,9 +97,11 @@ export function DriversTable({
             <button
               key={value}
               type="button"
-              onClick={() => setFilter(value)}
+              onClick={() =>
+                navigate({ status: value === "all" ? null : value })
+              }
               className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                filter === value
+                filters.status === value
                   ? "bg-navy text-white border-navy"
                   : "bg-white text-textdark border-grey/40 hover:border-navy"
               }`}
@@ -157,9 +111,11 @@ export function DriversTable({
           ))}
           <button
             type="button"
-            onClick={() => setSuspendedOnly((prev) => !prev)}
+            onClick={() =>
+              navigate({ suspended: filters.suspended ? null : "1" })
+            }
             className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-              suspendedOnly
+              filters.suspended
                 ? "bg-error text-white border-error"
                 : "bg-white text-textdark border-grey/40 hover:border-error"
             }`}
@@ -167,8 +123,13 @@ export function DriversTable({
             Suspended only
           </button>
           <select
-            value={garageFilter}
-            onChange={(e) => setGarageFilter(e.target.value)}
+            value={garage}
+            onChange={(e) => {
+              setGarage(e.target.value);
+              navigate({
+                garage: e.target.value === "all" ? null : e.target.value,
+              });
+            }}
             className="px-4 py-2 rounded-full text-sm font-medium border border-grey/40 bg-white text-textdark focus:outline-none focus:ring-2 focus:ring-orange/60"
           >
             <option value="all">All garages</option>
@@ -179,17 +140,26 @@ export function DriversTable({
             ))}
           </select>
         </div>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search name, phone, fuel code, car…"
-          className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
-        />
+
+        <form onSubmit={applySearch} className="flex gap-2 w-full md:w-auto">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name, email, phone, fuel code…"
+            className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy/90"
+          >
+            Search
+          </button>
+        </form>
       </div>
 
       <div className="bg-white border border-grey/40 rounded-2xl overflow-hidden">
-        {filtered.length === 0 ? (
+        {drivers.length === 0 ? (
           <div className="p-10 text-center text-textdark/60">
             No drivers match this filter.
           </div>
@@ -198,81 +168,34 @@ export function DriversTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-grey/40 text-left text-textdark/60">
-                  <SortableHeader
-                    label="Name"
-                    column="full_name"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                  />
-                  <SortableHeader
-                    label="Phone"
-                    column="phone"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden md:table-cell"
-                  />
-                  <SortableHeader
-                    label="Car"
-                    column="car_make_model"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden lg:table-cell"
-                  />
-                  <SortableHeader
-                    label="Fuel Credit"
-                    column="weekly_fuel_limit"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden lg:table-cell"
-                  />
-                  <SortableHeader
-                    label="Fuel Balance"
-                    column="fuel_balance"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden lg:table-cell"
-                  />
-                  <SortableHeader
-                    label="Garage"
-                    column="fuel_garage_name"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden xl:table-cell"
-                  />
-                  <SortableHeader
-                    label="Fuel Code"
-                    column="fuel_code"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden md:table-cell"
-                  />
-                  <SortableHeader
-                    label="Status"
-                    column="driver_status"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                  />
-                  <SortableHeader
-                    label="Created"
-                    column="created_at"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggleSort}
-                    className="hidden sm:table-cell"
-                  />
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="hidden md:table-cell px-4 py-3 font-medium">
+                    Phone
+                  </th>
+                  <th className="hidden lg:table-cell px-4 py-3 font-medium">
+                    Car
+                  </th>
+                  <th className="hidden lg:table-cell px-4 py-3 font-medium">
+                    Fuel Credit
+                  </th>
+                  <th className="hidden lg:table-cell px-4 py-3 font-medium">
+                    Fuel Balance
+                  </th>
+                  <th className="hidden xl:table-cell px-4 py-3 font-medium">
+                    Garage
+                  </th>
+                  <th className="hidden md:table-cell px-4 py-3 font-medium">
+                    Fuel Code
+                  </th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="hidden sm:table-cell px-4 py-3 font-medium">
+                    Created
+                  </th>
                   <th className="px-4 py-3 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((driver) => (
+                {drivers.map((driver) => (
                   <tr
                     key={driver.id}
                     className="border-b border-grey/20 last:border-0 hover:bg-offwhite"
@@ -281,7 +204,9 @@ export function DriversTable({
                       <p className="font-medium text-textdark">
                         {driver.full_name ?? "—"}
                       </p>
-                      <p className="text-textdark/50 md:hidden">{driver.phone}</p>
+                      <p className="text-textdark/50 md:hidden">
+                        {driver.phone}
+                      </p>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-textdark/80">
                       {driver.phone ?? "—"}
@@ -304,12 +229,14 @@ export function DriversTable({
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          statusStyles[driver.driver_status] ?? statusStyles.pending
+                          statusStyles[driver.driver_status] ??
+                          statusStyles.pending
                         }`}
                       >
                         {statusLabels[driver.driver_status] ?? "Pending"}
                       </span>
-                      {driver.suspended && driver.driver_status !== "suspended" ? (
+                      {driver.suspended &&
+                      driver.driver_status !== "suspended" ? (
                         <span className="inline-block ml-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-error/10 text-error">
                           Suspended
                         </span>
@@ -337,6 +264,14 @@ export function DriversTable({
             </table>
           </div>
         )}
+
+        <CursorPagination
+          hasNextPage={pageInfo.hasNextPage}
+          hasPreviousPage={pageInfo.hasPreviousPage}
+          nextCursor={pageInfo.nextCursor}
+          prevCursor={pageInfo.prevCursor}
+          rowCount={drivers.length}
+        />
       </div>
     </div>
   );

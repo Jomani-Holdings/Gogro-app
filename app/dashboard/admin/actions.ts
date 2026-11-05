@@ -1,12 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function setDriverActivation(
   profileId: string,
   inactive: boolean
 ): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  if (!profileId) return { ok: false, error: "Driver is required." };
+
   const admin = createAdminClient();
 
   const { error } = await admin

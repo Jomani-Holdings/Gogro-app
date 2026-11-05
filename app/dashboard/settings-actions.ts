@@ -6,8 +6,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AVATARS_BUCKET,
   MAX_AVATAR_SIZE,
+  sanitizeStorageKey,
   slugifyFilename,
 } from "@/lib/media";
+import {
+  createSignedUpload,
+  storedObjectExists,
+  validateUpload,
+  type PrepareUploadResult,
+  type UploadFileInput,
+} from "@/lib/upload";
 
 export type SettingsResult = {
   ok: boolean;
@@ -22,23 +30,46 @@ function avatarObjectPath(stored: string): string {
   return stored.replace(/^avatars\//, "");
 }
 
-export async function updateAvatar(formData: FormData): Promise<SettingsResult> {
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, message: "Please choose an image." };
-  }
-  if (file.size > MAX_AVATAR_SIZE) {
-    return { ok: false, message: "Image is larger than the 2MB limit." };
-  }
-  if (!AVATAR_TYPES.includes(file.type)) {
-    return { ok: false, message: "Only JPG or PNG images are allowed." };
-  }
+export async function prepareAvatarUpload(
+  input: UploadFileInput
+): Promise<PrepareUploadResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
 
+  const validationError = validateUpload(input, {
+    maxSize: MAX_AVATAR_SIZE,
+    allowedMime: (type) => AVATAR_TYPES.includes(type),
+    sizeMessage: "Image is larger than the 2MB limit.",
+    typeMessage: "Only JPG or PNG images are allowed.",
+  });
+  if (validationError) return { ok: false, error: validationError };
+
+  const storagePath = `${user.id}/${crypto.randomUUID()}-${slugifyFilename(
+    input.filename
+  )}`;
+
+  return createSignedUpload(AVATARS_BUCKET, storagePath);
+}
+
+export async function updateAvatar(
+  storagePath: string
+): Promise<SettingsResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Not signed in." };
+
+  const safePath = sanitizeStorageKey(storagePath);
+  if (!safePath || !safePath.startsWith(`${user.id}/`)) {
+    return { ok: false, message: "Invalid upload path." };
+  }
+  if (!(await storedObjectExists(AVATARS_BUCKET, safePath))) {
+    return { ok: false, message: "Upload not found. Please try again." };
+  }
 
   const admin = createAdminClient();
 
@@ -48,27 +79,15 @@ export async function updateAvatar(formData: FormData): Promise<SettingsResult> 
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const storagePath = `${user.id}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
-  const bytes = Buffer.from(await file.arrayBuffer());
-
-  const { error: uploadError } = await admin.storage
-    .from(AVATARS_BUCKET)
-    .upload(storagePath, bytes, {
-      contentType: file.type,
-      cacheControl: "3600",
-      upsert: false,
-    });
-  if (uploadError) return { ok: false, message: uploadError.message };
-
   const { error } = await admin
     .from("profiles")
     .update({
-      avatar_url: storagePath,
+      avatar_url: safePath,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", user.id);
   if (error) {
-    await admin.storage.from(AVATARS_BUCKET).remove([storagePath]);
+    await admin.storage.from(AVATARS_BUCKET).remove([safePath]);
     return { ok: false, message: error.message };
   }
 

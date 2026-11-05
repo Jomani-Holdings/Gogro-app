@@ -5,8 +5,9 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { JSONContent } from "@tiptap/core";
 import type { FormField, FormTemplate } from "@/lib/data/types";
-import { saveFormTemplate } from "@/app/dashboard/admin/forms/actions";
+import { saveFormTemplate, prepareContractUpload } from "@/app/dashboard/admin/forms/actions";
 import { documentUrl } from "@/lib/media";
+import { uploadFileToSignedUrl } from "@/lib/upload-client";
 
 const RichTextEditor = dynamic(
   () =>
@@ -110,10 +111,21 @@ export function FormTemplateBuilder({
     file.append("intro_content", JSON.stringify(intro));
     file.append("terms_content", JSON.stringify(terms));
     file.append("field_schema", JSON.stringify(cleanedFields));
-    if (contractFile) file.append("contract_document", contractFile);
     if (removeContract) file.append("remove_contract", "on");
 
     try {
+      if (contractFile) {
+        const prepared = await prepareContractUpload({
+          filename: contractFile.name,
+          contentType: contractFile.type,
+          size: contractFile.size,
+        });
+        if (!prepared.ok) throw new Error(prepared.error);
+
+        await uploadFileToSignedUrl(prepared.upload, contractFile, "3600");
+        file.append("contract_path", prepared.upload.path);
+      }
+
       await saveFormTemplate(file);
     } catch (err) {
       setError(

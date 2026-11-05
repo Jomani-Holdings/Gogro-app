@@ -1,3 +1,5 @@
+import type { TransactionType } from "@/lib/data/types";
+
 export function formatMoney(
   value: number | null | undefined,
   fractionDigits = 0
@@ -9,6 +11,25 @@ export function formatMoney(
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   }).format(value);
+}
+
+const CREDIT_TRANSACTION_TYPES = new Set<TransactionType>([
+  "fuel_repayment",
+  "repair_repayment",
+  "rental_repayment",
+  "balance_correction_decrease",
+  "reward_credit",
+]);
+
+export function formatSignedAmount(
+  type: TransactionType | string,
+  amount: number
+): { text: string; tone: string } {
+  const isCredit = CREDIT_TRANSACTION_TYPES.has(type as TransactionType);
+  return {
+    text: `${isCredit ? "-" : "+"}${formatMoney(amount, 2)}`,
+    tone: isCredit ? "text-success" : "text-error",
+  };
 }
 
 export function formatDate(iso: string | null | undefined): string {

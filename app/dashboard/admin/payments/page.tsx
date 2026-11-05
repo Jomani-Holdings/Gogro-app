@@ -26,7 +26,8 @@ export default async function AdminPaymentsPage({
   const tab = params.tab === "history" ? "history" : "proofs";
   const rangeAll = params.range === "all";
   const q = typeof params.q === "string" ? params.q : "";
-  const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const cursor = typeof params.cursor === "string" ? params.cursor : undefined;
+  const direction = params.dir === "prev" ? "prev" : "next";
 
   const fallback = defaultRange();
   const rawFrom = typeof params.from === "string" ? params.from : "";
@@ -47,16 +48,24 @@ export default async function AdminPaymentsPage({
           query: q,
           from,
           to,
-          page,
+          cursor,
+          direction,
         })
       : null;
 
   const history =
     tab === "history"
-      ? await getAdminRepaymentTransactions({ type, query: q, from, to, page })
+      ? await getAdminRepaymentTransactions({
+          type,
+          query: q,
+          from,
+          to,
+          cursor,
+          direction,
+        })
       : null;
 
-  const tableKey = [tab, status, category, type, q, from, to, page].join("|");
+  const tableKey = [tab, status, category, type, q, from, to].join("|");
 
   return (
     <div>
@@ -93,10 +102,7 @@ export default async function AdminPaymentsPage({
           <PaymentProofsTable
             key={tableKey}
             rows={proofs.rows}
-            page={proofs.page}
-            pageSize={proofs.pageSize}
-            pageCount={proofs.pageCount}
-            total={proofs.total}
+            pageInfo={proofs}
             filters={{ status, category, q, from, to }}
             rangeAll={rangeAll}
           />
@@ -106,10 +112,7 @@ export default async function AdminPaymentsPage({
           <RepaymentHistoryTable
             key={tableKey}
             rows={history.rows}
-            page={history.page}
-            pageSize={history.pageSize}
-            pageCount={history.pageCount}
-            total={history.total}
+            pageInfo={history}
             filters={{ type, q, from, to }}
             rangeAll={rangeAll}
           />

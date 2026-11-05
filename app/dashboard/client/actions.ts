@@ -11,8 +11,16 @@ import {
   DOCUMENTS_BUCKET,
   MAX_CLIENT_DOCUMENT_SIZE,
   MAX_PAYMENT_PROOF_SIZE,
+  sanitizeStorageKey,
   slugifyFilename,
 } from "@/lib/media";
+import {
+  createSignedUpload,
+  storedObjectExists,
+  validateUpload,
+  type PrepareUploadResult,
+  type UploadFileInput,
+} from "@/lib/upload";
 import { DOCUMENT_CATEGORIES, type DocumentCategory } from "@/lib/data/types";
 
 export type ClientDocumentActionResult = {
@@ -23,61 +31,86 @@ export type ClientDocumentActionResult = {
 const VALID_CATEGORIES = DOCUMENT_CATEGORIES.map((c) => c.value);
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 
-export async function uploadClientDocument(
-  formData: FormData
-): Promise<ClientDocumentActionResult> {
+export async function prepareClientDocumentUpload(input: {
+  category: string;
+  filename: string;
+  contentType: string;
+  size: number;
+}): Promise<PrepareUploadResult> {
   const profile = await requireClient();
   const user = { id: profile.user_id, email: profile.email };
 
-  const category = String(formData.get("category") ?? "") as DocumentCategory;
+  const category = input.category as DocumentCategory;
   if (!VALID_CATEGORIES.includes(category)) {
     return { ok: false, error: "Invalid document category." };
   }
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Please choose a file." };
-  }
-  if (file.size > MAX_CLIENT_DOCUMENT_SIZE) {
-    return { ok: false, error: "File is larger than the 2MB limit." };
-  }
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return { ok: false, error: "Only PDF, JPG or PNG files are allowed." };
+  const validationError = validateUpload(input, {
+    maxSize: MAX_CLIENT_DOCUMENT_SIZE,
+    allowedMime: (type) => ALLOWED_TYPES.includes(type),
+    sizeMessage: "File is larger than the 2MB limit.",
+    typeMessage: "Only PDF, JPG or PNG files are allowed.",
+  });
+  if (validationError) return { ok: false, error: validationError };
+
+  const admin = createAdminClient();
+  const { data: lead } = await admin
+    .from("leads")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const folder = lead?.id ? String(lead.id) : `user-${user.id}`;
+  const storagePath = `documents/${folder}/${category}/${crypto.randomUUID()}-${slugifyFilename(
+    input.filename
+  )}`;
+
+  return createSignedUpload(DOCUMENTS_BUCKET, storagePath);
+}
+
+export async function uploadClientDocument(input: {
+  path: string;
+  category: string;
+  filename: string;
+}): Promise<ClientDocumentActionResult> {
+  const profile = await requireClient();
+  const user = { id: profile.user_id, email: profile.email };
+
+  const category = input.category as DocumentCategory;
+  if (!VALID_CATEGORIES.includes(category)) {
+    return { ok: false, error: "Invalid document category." };
   }
 
   const admin = createAdminClient();
-
   const { data: lead } = await admin
     .from("leads")
     .select("id, full_name")
     .eq("user_id", user.id)
     .maybeSingle();
   const leadId = lead?.id ? String(lead.id) : null;
-
   const folder = leadId ? leadId : `user-${user.id}`;
-  const storagePath = `documents/${folder}/${category}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
-  const bytes = Buffer.from(await file.arrayBuffer());
 
-  const { error: uploadError } = await admin.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(storagePath, bytes, {
-      contentType: file.type,
-      cacheControl: "3600",
-      upsert: false,
-    });
-  if (uploadError) return { ok: false, error: uploadError.message };
+  const safePath = sanitizeStorageKey(input.path, DOCUMENTS_BUCKET);
+  const expectedPrefix = `documents/${folder}/${category}/`;
+  if (!safePath || !safePath.startsWith(expectedPrefix)) {
+    return { ok: false, error: "Invalid upload path." };
+  }
+  if (!(await storedObjectExists(DOCUMENTS_BUCKET, safePath))) {
+    return { ok: false, error: "Upload not found. Please try again." };
+  }
+
+  const filename = input.filename.trim() || safePath.split("/").pop() || "file";
 
   const { error } = await admin.from("documents").insert({
     lead_id: leadId,
     user_id: user.id,
     category,
-    filename: file.name,
-    storage_path: storagePath,
+    filename,
+    storage_path: safePath,
     status: "pending",
     uploaded_by: null,
   });
   if (error) {
-    await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
+    await admin.storage.from(DOCUMENTS_BUCKET).remove([safePath]);
     return { ok: false, error: error.message };
   }
 
@@ -132,56 +165,65 @@ export type PaymentProofActionResult = {
 
 const PAYMENT_PROOF_SIGNED_URL_TTL = 60 * 60 * 24 * 30; // 30 days
 
-export async function uploadPaymentProof(
-  formData: FormData
-): Promise<PaymentProofActionResult> {
+export async function preparePaymentProofUpload(
+  input: UploadFileInput
+): Promise<PrepareUploadResult> {
   const profile = await requireClient();
   const user = { id: profile.user_id, email: profile.email };
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Please attach your proof of payment." };
+  const validationError = validateUpload(input, {
+    maxSize: MAX_PAYMENT_PROOF_SIZE,
+    allowedMime: (type) => ALLOWED_TYPES.includes(type),
+    sizeMessage: "File is larger than the 5MB limit.",
+    typeMessage: "Only PDF, JPG or PNG files are allowed.",
+  });
+  if (validationError) return { ok: false, error: validationError };
+
+  const storagePath = `payment-proofs/${user.id}/${crypto.randomUUID()}-${slugifyFilename(
+    input.filename
+  )}`;
+
+  return createSignedUpload(DOCUMENTS_BUCKET, storagePath);
+}
+
+export async function uploadPaymentProof(input: {
+  path: string;
+  filename: string;
+}): Promise<PaymentProofActionResult> {
+  const profile = await requireClient();
+  const user = { id: profile.user_id, email: profile.email };
+
+  const safePath = sanitizeStorageKey(input.path, DOCUMENTS_BUCKET);
+  if (!safePath || !safePath.startsWith(`payment-proofs/${user.id}/`)) {
+    return { ok: false, error: "Invalid upload path." };
   }
-  if (file.size > MAX_PAYMENT_PROOF_SIZE) {
-    return { ok: false, error: "File is larger than the 5MB limit." };
-  }
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return { ok: false, error: "Only PDF, JPG or PNG files are allowed." };
+  if (!(await storedObjectExists(DOCUMENTS_BUCKET, safePath))) {
+    return { ok: false, error: "Upload not found. Please try again." };
   }
 
+  const filename = input.filename.trim() || safePath.split("/").pop() || "proof";
   const admin = createAdminClient();
-  const storagePath = `payment-proofs/${user.id}/${crypto.randomUUID()}-${slugifyFilename(file.name)}`;
-  const bytes = Buffer.from(await file.arrayBuffer());
-
-  const { error: uploadError } = await admin.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(storagePath, bytes, {
-      contentType: file.type,
-      cacheControl: "3600",
-      upsert: false,
-    });
-  if (uploadError) return { ok: false, error: uploadError.message };
 
   const { data: inserted, error: insertError } = await admin
     .from("payment_proofs")
     .insert({
       user_id: user.id,
       profile_id: profile.id,
-      storage_path: storagePath,
-      filename: file.name,
+      storage_path: safePath,
+      filename,
       category: "fuel_repayment",
       status: "pending",
     })
     .select("id")
     .single();
   if (insertError || !inserted) {
-    await admin.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
+    await admin.storage.from(DOCUMENTS_BUCKET).remove([safePath]);
     return { ok: false, error: insertError?.message ?? "Could not save proof." };
   }
 
   const { data: signed, error: signedError } = await admin.storage
     .from(DOCUMENTS_BUCKET)
-    .createSignedUrl(storagePath, PAYMENT_PROOF_SIGNED_URL_TTL);
+    .createSignedUrl(safePath, PAYMENT_PROOF_SIGNED_URL_TTL);
   if (signedError || !signed?.signedUrl) {
     return {
       ok: false,
@@ -193,7 +235,7 @@ export async function uploadPaymentProof(
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
   await notifyAllAdmins({
     title: `New Proof of Payment uploaded by ${driverName}`,
-    body: `File: ${file.name}`,
+    body: `File: ${filename}`,
     link: `${baseUrl}/dashboard/admin/payments`,
     type: "payment_proof",
   });
@@ -203,7 +245,7 @@ export async function uploadPaymentProof(
     ok: true,
     id: String(inserted.id),
     signedUrl: signed.signedUrl,
-    filename: file.name,
+    filename,
   };
 }
 

@@ -1,28 +1,22 @@
+import { Suspense } from "react";
 import { Users, Fuel, Wallet, Percent, AlertTriangle, ShieldAlert, Car, Truck } from "lucide-react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import {
   getAdminDashboardStats,
   getAdminActiveDriversForDashboard,
-  getFuelUsageByGarage,
   getTopDebtors,
 } from "@/lib/data/admin";
 import { formatMoney } from "@/lib/utils";
 import { KpiCard } from "@/app/components/dashboard/KpiCard";
 import { ActiveDriversTable } from "@/app/components/dashboard/ActiveDriversTable";
 import { DebtBalanceOverview } from "@/app/components/dashboard/DebtBalanceOverview";
-
-const FuelUsageByGarage = dynamic(() =>
-  import("@/app/components/dashboard/FuelUsageByGarage").then(
-    (m) => m.FuelUsageByGarage
-  )
-);
+import { FuelUsageByGarageContainer } from "@/app/components/dashboard/FuelUsageByGarageContainer";
+import { FuelUsageByGarageSkeleton } from "@/app/components/dashboard/FuelUsageByGarageSkeleton";
 
 export default async function AdminOverviewPage() {
-  const [stats, activeDrivers, fuelUsage, topDebtors] = await Promise.all([
+  const [stats, activeDrivers, topDebtors] = await Promise.all([
     getAdminDashboardStats(),
     getAdminActiveDriversForDashboard(),
-    getFuelUsageByGarage(),
     getTopDebtors(5),
   ]);
 
@@ -99,7 +93,9 @@ export default async function AdminOverviewPage() {
       </section>
 
       <div className="grid lg:grid-cols-2 gap-6 mt-8">
-        <FuelUsageByGarage data={fuelUsage} />
+        <Suspense fallback={<FuelUsageByGarageSkeleton />}>
+          <FuelUsageByGarageContainer />
+        </Suspense>
         <DebtBalanceOverview debtors={topDebtors} />
       </div>
     </div>

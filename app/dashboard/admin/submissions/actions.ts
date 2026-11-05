@@ -1,7 +1,9 @@
 "use server";
 
+import { randomInt } from "crypto";
 import { revalidatePath } from "next/cache";
 import { Resend } from "resend";
+import { z } from "zod";
 import { escapeHtml, type EmailVariables } from "@/lib/email";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,6 +28,16 @@ const SUBMISSION_STATUSES = [
   "rejected",
 ];
 
+const updateSubmissionStatusSchema = z.object({
+  id: z.string().uuid(),
+  status: z
+    .string()
+    .refine(
+      (value) => SUBMISSION_STATUSES.includes(value),
+      "Invalid submission status."
+    ),
+});
+
 function parseBandUpperBound(value: unknown): number | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const numbers = value.replace(/\s+/g, "").match(/\d+/g);
@@ -36,7 +48,7 @@ function parseBandUpperBound(value: unknown): number | null {
 
 async function generateFuelCode(admin: ReturnType<typeof createAdminClient>): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const code = `GG-${Math.floor(1000 + Math.random() * 9000)}`;
+    const code = `GG-${randomInt(1000, 10000)}`;
     const { data } = await admin
       .from("profiles")
       .select("id")
@@ -44,7 +56,7 @@ async function generateFuelCode(admin: ReturnType<typeof createAdminClient>): Pr
       .maybeSingle();
     if (!data) return code;
   }
-  return `GG-${Math.floor(1000 + Math.random() * 9000)}`;
+  return `GG-${randomInt(1000, 10000)}`;
 }
 
 export async function updateSubmissionStatus(
@@ -52,9 +64,17 @@ export async function updateSubmissionStatus(
   status: string
 ): Promise<SubmissionActionResult> {
   await requireAdmin();
-  if (!SUBMISSION_STATUSES.includes(status)) {
-    return { ok: false, error: "Invalid status." };
+
+  const parsed = updateSubmissionStatusSchema.safeParse({ id, status });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid submission or status.",
+    };
   }
+
+  id = parsed.data.id;
+  status = parsed.data.status;
 
   const admin = createAdminClient();
 
@@ -82,27 +102,27 @@ export async function updateSubmissionStatus(
       ? (submissionData.data as Record<string, unknown>)
       : {};
 
-  const { error } = await admin
-    .from("form_submissions")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", id);
+  if (status === "approved" && lead?.user_id) {
+    const { data: existingProfile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("user_id", lead.user_id)
+      .maybeSingle();
 
-  if (error) return { ok: false, error: error.message };
+    if (existingProfile?.role === "admin") {
+      return {
+        ok: false,
+        error: "Cannot change an admin account through submission approval.",
+      };
+    }
+  }
 
-  const leadStatus =
-    status === "approved" || status === "rejected" ? status : "submitted";
-  await admin
-    .from("leads")
-    .update({ status: leadStatus, updated_at: new Date().toISOString() })
-    .eq("id", leadId);
+  const profilePatch: Record<string, unknown> = {};
+  let leadSource: string | null = null;
 
   if (status === "approved" && lead?.user_id) {
     const templateSlug = template?.slug ?? "";
-
-    const profilePatch: Record<string, unknown> = {
-      driver_status: "active",
-      updated_at: new Date().toISOString(),
-    };
+    profilePatch.driver_status = "active";
 
     if (templateSlug === "vehicle-rental") {
       const idNumber = formData.idNumber ? String(formData.idNumber) : null;
@@ -127,13 +147,9 @@ export async function updateSubmissionStatus(
       if (yearsExperience) profilePatch.years_experience = yearsExperience;
       if (preferredCategory)
         profilePatch.preferred_vehicle_category = preferredCategory;
-      if (marketingSource) profilePatch.marketing_source = marketingSource;
-
       if (marketingSource) {
-        await admin
-          .from("leads")
-          .update({ source: marketingSource, updated_at: new Date().toISOString() })
-          .eq("id", leadId);
+        profilePatch.marketing_source = marketingSource;
+        leadSource = marketingSource;
       }
     } else {
       const idNumber = formData.idNumber
@@ -184,17 +200,25 @@ export async function updateSubmissionStatus(
       if (garageId) profilePatch.fuel_garage_id = garageId;
       if (fuelCode) profilePatch.fuel_code = fuelCode;
     }
+  }
 
-    const { error: profileError } = await admin.from("profiles").upsert(
-      {
-        user_id: lead.user_id,
-        role: "client",
-        ...profilePatch,
-      },
-      { onConflict: "user_id" }
-    );
+  const { data: rpcData, error } = await admin.rpc("update_submission_status", {
+    p_submission_id: id,
+    p_status: status,
+    p_lead_id: leadId,
+    p_user_id: lead?.user_id ?? null,
+    p_profile_patch: profilePatch,
+    p_lead_source: leadSource,
+  });
 
-    if (profileError) return { ok: false, error: profileError.message };
+  if (error) return { ok: false, error: error.message };
+
+  const rpcResult = rpcData as { ok?: boolean; error?: string } | null;
+  if (!rpcResult?.ok) {
+    return {
+      ok: false,
+      error: rpcResult?.error ?? "Could not update the submission.",
+    };
   }
 
   if ((status === "approved" || status === "rejected") && lead?.email) {

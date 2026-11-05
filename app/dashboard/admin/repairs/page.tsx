@@ -2,17 +2,27 @@ import {
   getAdminRepairDrivers,
   getAdminDriverSearchOptions,
   getAdminGarageOptions,
-  getAdminVehicles,
+  getAdminVehicleOptions,
 } from "@/lib/data/admin";
 import { RepairDriversTable } from "@/app/components/dashboard/RepairDriversTable";
 import { LogRepairModal } from "@/app/components/dashboard/LogRepairModal";
 
-export default async function AdminRepairsPage() {
-  const [repairDrivers, searchDrivers, garages, vehicles] = await Promise.all([
-    getAdminRepairDrivers(),
+export default async function AdminRepairsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const cursor = typeof params.cursor === "string" ? params.cursor : undefined;
+  const direction = params.dir === "prev" ? "prev" : "next";
+  const query = typeof params.q === "string" ? params.q : "";
+  const status = typeof params.status === "string" ? params.status : "all";
+
+  const [repairPage, searchDrivers, garages, vehicles] = await Promise.all([
+    getAdminRepairDrivers({ cursor, direction, query, status }),
     getAdminDriverSearchOptions(),
     getAdminGarageOptions(),
-    getAdminVehicles(),
+    getAdminVehicleOptions(),
   ]);
 
   return (
@@ -34,7 +44,11 @@ export default async function AdminRepairsPage() {
       </div>
 
       <div className="mt-8">
-        <RepairDriversTable drivers={repairDrivers} />
+        <RepairDriversTable
+          drivers={repairPage.rows}
+          pageInfo={repairPage}
+          filters={{ query, status }}
+        />
       </div>
     </div>
   );

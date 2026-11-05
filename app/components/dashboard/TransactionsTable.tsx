@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { formatMoney, formatDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { Transaction } from "@/lib/data/types";
 import { deleteTransaction } from "@/app/dashboard/admin/transactions/actions";
+import { CursorPagination } from "@/app/components/dashboard/CursorPagination";
+import { SignedAmount } from "@/app/components/dashboard/SignedAmount";
 
 export type AdminTransactionRow = Transaction & { driver_name: string | null };
 
@@ -19,6 +21,8 @@ const typeStyles: Record<string, string> = {
   repair_repayment: "bg-success/10 text-success",
   reward_credit: "bg-success/10 text-success",
   rental_fee: "bg-navy/10 text-navy",
+  rental_repayment: "bg-success/10 text-success",
+  penalty_fee: "bg-error/10 text-error",
   opening_balance: "bg-grey/40 text-textdark",
   balance_correction_increase: "bg-blue-600/10 text-blue-600",
   balance_correction_decrease: "bg-error/10 text-error",
@@ -26,31 +30,43 @@ const typeStyles: Record<string, string> = {
 
 export function TransactionsTable({
   transactions,
+  pageInfo,
+  filters,
 }: {
   transactions: AdminTransactionRow[];
+  pageInfo: {
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    nextCursor: string | null;
+    prevCursor: string | null;
+  };
+  filters: { query: string; type: string; from: string; to: string };
 }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<string>("all");
-  const [query, setQuery] = useState("");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(filters.query);
 
   const [pending, setPending] = useState<AdminTransactionRow | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return transactions.filter((tx) => {
-      if (filter !== "all" && tx.type !== filter) return false;
-      if (!q) return true;
-      return [
-        tx.driver_name,
-        tx.vehicle_name,
-        tx.garage_name,
-        tx.driver_id,
-      ].some((value) => value?.toLowerCase().includes(q));
-    });
-  }, [transactions, filter, query]);
+  function navigate(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
+    }
+    params.delete("cursor");
+    params.delete("dir");
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  function applySearch(e: FormEvent) {
+    e.preventDefault();
+    navigate({ q: query.trim() || null });
+  }
 
   function openDelete(tx: AdminTransactionRow) {
     setPending(tx);
@@ -98,28 +114,42 @@ export function TransactionsTable({
             <button
               key={value}
               type="button"
-              onClick={() => setFilter(value)}
+              onClick={() =>
+                navigate({ type: value === "all" ? null : value })
+              }
               className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                filter === value
+                filters.type === value
                   ? "bg-navy text-white border-navy"
                   : "bg-white text-textdark border-grey/40 hover:border-navy"
               }`}
             >
-              {value === "all" ? "All" : TRANSACTION_LABELS[value as keyof typeof TRANSACTION_LABELS]}
+              {value === "all"
+                ? "All"
+                : TRANSACTION_LABELS[
+                    value as keyof typeof TRANSACTION_LABELS
+                  ]}
             </button>
           ))}
         </div>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search driver, vehicle, garage…"
-          className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
-        />
+        <form onSubmit={applySearch} className="flex gap-2 w-full md:w-auto">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search driver name, email or phone…"
+            className="w-full md:w-72 rounded-lg border border-grey/60 bg-white px-4 py-2.5 text-sm text-textdark placeholder:text-textdark/40 focus:outline-none focus:ring-2 focus:ring-orange/60"
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy/90"
+          >
+            Search
+          </button>
+        </form>
       </div>
 
       <div className="bg-white border border-grey/40 rounded-2xl overflow-hidden">
-        {filtered.length === 0 ? (
+        {transactions.length === 0 ? (
           <div className="p-10 text-center text-textdark/60">
             No transactions match this filter.
           </div>
@@ -145,7 +175,7 @@ export function TransactionsTable({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((tx) => (
+                {transactions.map((tx) => (
                   <tr
                     key={tx.id}
                     className="border-b border-grey/20 last:border-0 hover:bg-offwhite"
@@ -183,8 +213,8 @@ export function TransactionsTable({
                     <td className="px-4 py-3 text-textdark/70">
                       {tx.litres !== null ? `${tx.litres} L` : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-textdark">
-                      {formatMoney(tx.amount, 2)}
+                    <td className="px-4 py-3 text-right">
+                      <SignedAmount type={tx.type} amount={tx.amount} />
                       {tx.points_earned > 0 ? (
                         <span className="block text-xs font-semibold text-success">
                           +{tx.points_earned} pts
@@ -200,13 +230,20 @@ export function TransactionsTable({
                         Delete
                       </button>
                     </td>
-                
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+
+        <CursorPagination
+          hasNextPage={pageInfo.hasNextPage}
+          hasPreviousPage={pageInfo.hasPreviousPage}
+          nextCursor={pageInfo.nextCursor}
+          prevCursor={pageInfo.prevCursor}
+          rowCount={transactions.length}
+        />
       </div>
 
       {pending ? (
@@ -227,7 +264,7 @@ export function TransactionsTable({
               </p>
               <p className="text-textdark/60">
                 {TRANSACTION_LABELS[pending.type] ?? pending.type} ·{" "}
-                {formatMoney(pending.amount, 2)} ·{" "}
+                <SignedAmount type={pending.type} amount={pending.amount} /> ·{" "}
                 {formatDateTime(pending.created_at)}
               </p>
             </div>
