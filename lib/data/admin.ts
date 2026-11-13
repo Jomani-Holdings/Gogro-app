@@ -803,6 +803,7 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
     garage_name: garage?.name ?? null,
     type: String(row.type) as TransactionType,
     amount: Number(row.amount ?? 0),
+    service_fee: Number(row.service_fee ?? 0),
     litres: row.litres === null || row.litres === undefined ? null : Number(row.litres),
     points_earned: Number(row.points_earned ?? 0),
     created_at: String(row.created_at ?? ""),
@@ -819,6 +820,7 @@ function mapActiveTransaction(row: Record<string, unknown>): AdminTransaction {
     garage_name: row.garage_name ? String(row.garage_name) : null,
     type: String(row.type) as TransactionType,
     amount: Number(row.amount ?? 0),
+    service_fee: Number(row.service_fee ?? 0),
     litres: row.litres === null || row.litres === undefined ? null : Number(row.litres),
     points_earned: Number(row.points_earned ?? 0),
     created_at: String(row.created_at ?? ""),
@@ -834,7 +836,7 @@ export async function getDriverTransactions(
   const { data, error } = await supabase
     .from("active_transactions")
     .select(
-      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at"
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, service_fee, litres, points_earned, created_at"
     )
     .eq("driver_id", driverId)
     .order("created_at", { ascending: false })
@@ -1037,7 +1039,7 @@ export async function getAdminTransactions(
   let q = supabase
     .from("admin_transactions_search")
     .select(
-      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at, driver_name"
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, service_fee, litres, points_earned, created_at, driver_name"
     );
 
   if (filters.type && filters.type !== "all") {
@@ -1099,7 +1101,7 @@ export async function getAdminDeletedTransactions(
        deleted_at,
        deleted_by_profile:profiles!deleted_by(full_name),
        transactions!transaction_id!inner(
-         id, driver_id, vehicle_id, garage_id, type, amount, litres, points_earned, created_at,
+         id, driver_id, vehicle_id, garage_id, type, amount, service_fee, litres, points_earned, created_at,
          vehicles(make_model), garages(name), profiles!inner(full_name)
        )`
     )
@@ -1293,7 +1295,7 @@ export async function getAdminRepaymentTransactions(
   let q = supabase
     .from("admin_transactions_search")
     .select(
-      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, litres, points_earned, created_at, driver_name"
+      "id, driver_id, vehicle_id, garage_id, vehicle_name, garage_name, type, amount, service_fee, litres, points_earned, created_at, driver_name"
     )
     .in("type", types);
 

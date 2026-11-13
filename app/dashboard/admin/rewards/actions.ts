@@ -147,7 +147,12 @@ export async function saveReward(formData: FormData): Promise<void> {
     max_claims: input.max_claims,
     per_driver_limit: input.per_driver_limit,
     teaser_at: toIso(input.teaser_at ?? null),
-    publish_at: toIso(input.publish_at),
+    // Publishing immediately reveals the reward now, regardless of the form's
+    // reveal date. Scheduled rewards keep their chosen publish time.
+    publish_at:
+      input.status === "published"
+        ? new Date().toISOString()
+        : toIso(input.publish_at ?? null),
     expires_at: toIso(input.expires_at ?? null),
     sort_order: input.sort_order,
     updated_at: new Date().toISOString(),

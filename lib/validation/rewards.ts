@@ -9,7 +9,7 @@ const optionalText = z
 
 export const rewardSchema = z
   .object({
-    status: z.enum(["draft", "scheduled", "archived"]),
+    status: z.enum(["draft", "scheduled", "published", "archived"]),
     reward_category: z.enum([
       "perk",
       "programme_fuel",
@@ -38,7 +38,8 @@ export const rewardSchema = z
     max_claims: z.number().int().min(0).optional().nullable(),
     per_driver_limit: z.number().int().min(0),
     teaser_at: z.string().optional().nullable(),
-    publish_at: z.string().min(1, "Publish date is required"),
+    // Required for scheduled rewards, optional when publishing immediately.
+    publish_at: z.string().optional().nullable(),
     expires_at: z.string().optional().nullable(),
     sort_order: z.number().int(),
   })
@@ -75,43 +76,51 @@ export const rewardSchema = z
       });
     }
 
+    if (
+      (data.status === "scheduled" || data.status === "published") &&
+      !data.title
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["title"],
+        message:
+          data.status === "published"
+            ? "Add the reward title before publishing it."
+            : "Add the reward title before scheduling it.",
+      });
+    }
+
     if (data.status === "scheduled") {
-      if (!data.title) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["title"],
-          message: "Add the reward title before scheduling it.",
-        });
-      }
-      const publish = new Date(data.publish_at);
-      if (Number.isNaN(publish.getTime())) {
+      const publish = data.publish_at ? new Date(data.publish_at) : null;
+      if (!publish || Number.isNaN(publish.getTime())) {
         ctx.addIssue({
           code: "custom",
           path: ["publish_at"],
           message: "Enter a valid publish date.",
         });
-      }
-      if (data.teaser_at) {
-        const teaser = new Date(data.teaser_at);
-        if (!Number.isNaN(teaser.getTime()) && !Number.isNaN(publish.getTime())) {
-          if (teaser.getTime() >= publish.getTime()) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["teaser_at"],
-              message: "The teaser must start before the reward is published.",
-            });
+      } else {
+        if (data.teaser_at) {
+          const teaser = new Date(data.teaser_at);
+          if (!Number.isNaN(teaser.getTime())) {
+            if (teaser.getTime() >= publish.getTime()) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["teaser_at"],
+                message: "The teaser must start before the reward is published.",
+              });
+            }
           }
         }
-      }
-      if (data.expires_at) {
-        const expires = new Date(data.expires_at);
-        if (!Number.isNaN(expires.getTime()) && !Number.isNaN(publish.getTime())) {
-          if (expires.getTime() <= publish.getTime()) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["expires_at"],
-              message: "The expiry must be after the publish date.",
-            });
+        if (data.expires_at) {
+          const expires = new Date(data.expires_at);
+          if (!Number.isNaN(expires.getTime())) {
+            if (expires.getTime() <= publish.getTime()) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["expires_at"],
+                message: "The expiry must be after the publish date.",
+              });
+            }
           }
         }
       }

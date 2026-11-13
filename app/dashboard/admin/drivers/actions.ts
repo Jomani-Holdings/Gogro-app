@@ -327,15 +327,19 @@ export async function resetStreak(id: string): Promise<DriverActionResult> {
   await requireAdmin();
   const admin = createAdminClient();
 
-  const { error } = await admin
-    .from("profiles")
-    .update({
-      current_streak: 0,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  const { data, error } = await admin.rpc("reset_driver_streak", {
+    p_driver_id: id,
+  });
 
   if (error) return { ok: false, error: error.message };
+
+  const result = data as { ok?: boolean; error?: string } | null;
+  if (!result?.ok) {
+    return {
+      ok: false,
+      error: result?.error ?? "Could not reset the streak.",
+    };
+  }
 
   revalidatePath("/dashboard/admin/drivers");
   revalidatePath(`/dashboard/admin/drivers/${id}`);

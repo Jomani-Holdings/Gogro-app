@@ -169,6 +169,7 @@ export type ClientTransaction = {
   id: string;
   type: TransactionType;
   amount: number;
+  service_fee: number;
   litres: number | null;
   points_earned: number;
   vehicle_name: string | null;
@@ -192,7 +193,7 @@ export async function getClientTransactions(
   const { data, error } = await supabase
     .from("active_transactions")
     .select(
-      "id, type, amount, litres, points_earned, created_at, vehicle_name, garage_name"
+      "id, type, amount, service_fee, litres, points_earned, created_at, vehicle_name, garage_name"
     )
     .eq("driver_id", driverId)
     .order("created_at", { ascending: false });
@@ -204,6 +205,7 @@ export async function getClientTransactions(
       id: String(row.id),
       type: String(row.type) as TransactionType,
       amount: Number(row.amount ?? 0),
+      service_fee: Number(row.service_fee ?? 0),
       litres:
         row.litres === null || row.litres === undefined
           ? null
@@ -295,21 +297,35 @@ export async function getClientPointsContext(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, points_balance, lifetime_points_earned, lifetime_points_redeemed, current_streak, referral_code"
+      "id, full_name, points_balance, lifetime_points_earned, lifetime_points_redeemed, current_streak, streak_cycle, referral_code"
     )
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error || !data) return null;
   const row = data as Record<string, unknown>;
+  const driverId = String(row.id);
+  const streakCycle = Number(row.streak_cycle ?? 0);
+
+  const { data: redemptions } = await supabase
+    .from("streak_redemptions")
+    .select("milestone_weeks")
+    .eq("driver_id", driverId)
+    .eq("streak_cycle", streakCycle);
+
+  const redeemedMilestones = ((redemptions ?? []) as Record<string, unknown>[])
+    .map((redemption) => Number(redemption.milestone_weeks))
+    .filter((weeks) => Number.isFinite(weeks));
 
   return {
-    driver_id: String(row.id),
+    driver_id: driverId,
     full_name: row.full_name ? String(row.full_name) : null,
     points_balance: Number(row.points_balance ?? 0),
     lifetime_points_earned: Number(row.lifetime_points_earned ?? 0),
     lifetime_points_redeemed: Number(row.lifetime_points_redeemed ?? 0),
     current_streak: Number(row.current_streak ?? 0),
+    streak_cycle: streakCycle,
+    redeemed_milestones: redeemedMilestones,
     referral_code: row.referral_code ? String(row.referral_code) : null,
   };
 }
