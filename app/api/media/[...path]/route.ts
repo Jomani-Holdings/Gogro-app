@@ -71,7 +71,6 @@ export async function GET(
     const isTeaserArt = reward.teaser_image_path === key;
 
     if (!isTeaserArt) {
-      const adminRequest = await isAdminRequest();
       const publishAt = reward.publish_at
         ? new Date(String(reward.publish_at)).getTime()
         : 0;
@@ -80,15 +79,16 @@ export async function GET(
         : null;
       const now = Date.now();
       const isPublished =
-        reward.status === "scheduled" &&
-        now >= publishAt &&
-        (expiresAt === null || now < expiresAt);
+        reward.status === "published" ||
+        (reward.status === "scheduled" && now >= publishAt);
+      const notExpired = expiresAt === null || now < expiresAt;
+      const isAvailable = isPublished && notExpired;
 
-      if (!adminRequest && !isPublished) {
-        return new NextResponse("Not found", { status: 404 });
-      }
-
-      if (adminRequest && !isPublished) {
+      if (!isAvailable) {
+        const adminRequest = await isAdminRequest();
+        if (!adminRequest) {
+          return new NextResponse("Not found", { status: 404 });
+        }
         cacheControl = PRIVATE_CACHE;
       }
     }

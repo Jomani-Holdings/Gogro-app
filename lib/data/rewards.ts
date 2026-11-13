@@ -75,6 +75,11 @@ export function computeRewardState(
     : null;
 
   if (expiresMs !== null && nowMs >= expiresMs) return "expired";
+
+  // A reward explicitly marked "published" goes live immediately, regardless
+  // of its reveal timestamp. This is the admin's "publish now" switch.
+  if (reward.status === "published") return "published";
+
   if (Number.isFinite(publishMs) && nowMs >= publishMs) return "published";
   if (teaserMs !== null && nowMs >= teaserMs) return "teaser";
 
@@ -110,6 +115,9 @@ export function maskClientReward(
     garage_name: reward.garage_name,
     membership_tier: reward.membership_tier,
     value_amount: isTeaser ? null : reward.value_amount,
+    point_cost: isTeaser ? null : reward.point_cost,
+    point_reward_type: isTeaser ? null : reward.point_reward_type,
+    per_driver_limit: reward.per_driver_limit,
     publish_at: reward.publish_at,
     expires_at: reward.expires_at,
     sort_order: reward.sort_order,
@@ -123,7 +131,7 @@ export async function getPublicRewards(): Promise<ClientReward[]> {
   const { data, error } = await supabase
     .from("rewards")
     .select("*, garages(name)")
-    .eq("status", "scheduled")
+    .in("status", ["scheduled", "published"])
     .is("point_cost", null)
     .order("sort_order", { ascending: true })
     .order("publish_at", { ascending: true });
@@ -131,6 +139,54 @@ export async function getPublicRewards(): Promise<ClientReward[]> {
   if (error) throw new Error(error.message);
 
   return ((data ?? []) as Record<string, unknown>[])
+    .map((row) => maskClientReward(mapReward(row), now))
+    .filter((reward): reward is ClientReward => reward !== null);
+}
+
+/**
+ * Rewards a specific driver can see and claim, filtered by their garage and
+ * membership tier. Includes both teaser and published states.
+ */
+export async function getDriverRewards(
+  userId: string
+): Promise<ClientReward[]> {
+  const supabase = createAdminClient();
+  const { data: summary } = await supabase
+    .from("driver_account_summary")
+    .select("fuel_garage_id, membership_tier")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!summary) return [];
+
+  const garageId = summary.fuel_garage_id
+    ? String(summary.fuel_garage_id)
+    : null;
+  const tier = summary.membership_tier
+    ? String(summary.membership_tier)
+    : null;
+
+  const now = new Date();
+  const { data, error } = await supabase
+    .from("rewards")
+    .select("*, garages(name)")
+    .in("status", ["scheduled", "published"])
+    .order("sort_order", { ascending: true })
+    .order("publish_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Record<string, unknown>[])
+    .filter((row) => {
+      const audience = String(row.audience ?? "all_drivers");
+      if (audience === "garage_specific") {
+        return Boolean(garageId) && String(row.garage_id) === garageId;
+      }
+      if (audience === "tier_specific") {
+        return Boolean(tier) && String(row.membership_tier) === tier;
+      }
+      return true;
+    })
     .map((row) => maskClientReward(mapReward(row), now))
     .filter((reward): reward is ClientReward => reward !== null);
 }

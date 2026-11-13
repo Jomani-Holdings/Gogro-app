@@ -122,6 +122,7 @@ export type Transaction = {
   garage_name: string | null;
   type: TransactionType;
   amount: number;
+  service_fee: number;
   litres: number | null;
   points_earned: number;
   created_at: string;
@@ -368,7 +369,7 @@ export const MEMBERSHIP_TIERS: { value: MembershipTier; label: string }[] = [
   { value: "platinum", label: "Platinum" },
 ];
 
-export type RewardStatus = "draft" | "scheduled" | "archived";
+export type RewardStatus = "draft" | "scheduled" | "published" | "archived";
 
 export type RewardState =
   | "draft"
@@ -460,6 +461,9 @@ export type ClientReward = {
   garage_name: string | null;
   membership_tier: MembershipTier | null;
   value_amount: number | null;
+  point_cost: number | null;
+  point_reward_type: PointRewardType | null;
+  per_driver_limit: number;
   publish_at: string;
   expires_at: string | null;
   sort_order: number;
@@ -525,5 +529,7 @@ export type ClientPointsContext = {
   lifetime_points_earned: number;
   lifetime_points_redeemed: number;
   current_streak: number;
+  streak_cycle: number;
+  redeemed_milestones: number[];
   referral_code: string | null;
 };
