@@ -79,6 +79,7 @@ const logTransactionSchema = z.object({
   skip_notification: z.boolean(),
   points_earned: z.number().int().nonnegative(),
   on_time: z.boolean(),
+  service_fee: z.number().nonnegative().finite(),
 });
 
 function transactionImpact(type: string, amount: number) {
@@ -129,6 +130,7 @@ export async function logTransaction(
   const skipNotification = clean(formData.get("skip_notification")) === "true";
   const pointsRaw = clean(formData.get("points_earned"));
   const onTime = clean(formData.get("on_time")) === "true";
+  const serviceFeeRaw = clean(formData.get("service_fee"));
 
   if (!driverId) return { ok: false, error: "Driver is required." };
   if (!type || !TRANSACTION_TYPES.some((t) => t.value === type)) {
@@ -159,6 +161,15 @@ export async function logTransaction(
     litres = n;
   }
 
+  let serviceFee = 0;
+  if (serviceFeeRaw) {
+    const n = Number(serviceFeeRaw);
+    if (!Number.isFinite(n) || n < 0) {
+      return { ok: false, error: "Service fee must be zero or more." };
+    }
+    serviceFee = n;
+  }
+
   const parsed = logTransactionSchema.safeParse({
     driver_id: driverId,
     type,
@@ -171,6 +182,7 @@ export async function logTransaction(
     skip_notification: skipNotification,
     points_earned: pointsEarned,
     on_time: onTime,
+    service_fee: serviceFee,
   });
 
   if (!parsed.success) {
@@ -228,6 +240,9 @@ export async function logTransaction(
     p_overlimit_action: overLimit ? overrideAction : null,
     p_points_earned: pointsEarned,
     p_on_time: onTime,
+    // The fee is only meaningful on fuel repayments; never charge it on other
+    // transaction types even if the client sends a value.
+    p_service_fee: type === "fuel_repayment" ? serviceFee : 0,
   });
 
   if (error) {

@@ -8,10 +8,12 @@ import {
   getClientProgrammeContext,
   getClientAccountProfile,
   getClientDebtBreakdown,
+  getClientPointsContext,
 } from "@/lib/data/client";
 import { RequiredActions } from "@/app/components/dashboard/RequiredActions";
 import { HeroProfileCard } from "@/app/components/dashboard/HeroProfileCard";
 import { DebtBreakdown } from "@/app/components/dashboard/DebtBreakdown";
+import { StreakBanner } from "@/app/components/dashboard/StreakBanner";
 import { getWhatsAppLink } from "@/app/lib/site-config";
 
 export default async function ClientHomePage() {
@@ -22,12 +24,14 @@ export default async function ClientHomePage() {
     programme,
     accountProfile,
     breakdown,
+    pointsContext,
   ] = await Promise.all([
     getClientLeadAndSubmissions(profile.user_id),
     getClientBalances(profile.user_id),
     getClientProgrammeContext(profile.user_id),
     getClientAccountProfile(profile.user_id),
     getClientDebtBreakdown(profile.user_id),
+    getClientPointsContext(profile.user_id),
   ]);
   const requiredActions = await getClientRequiredActions(
     profile.user_id,
@@ -59,6 +63,13 @@ export default async function ClientHomePage() {
   return (
     <div>
       <RequiredActions actions={requiredActions} />
+
+      {pointsContext ? (
+        <StreakBanner
+          streak={pointsContext.current_streak}
+          showRewardsLink
+        />
+      ) : null}
 
       {!lead && accountProfile?.driver_status === "pending" ? (
         <section className="bg-white border border-grey/40 rounded-2xl p-6 mt-6">

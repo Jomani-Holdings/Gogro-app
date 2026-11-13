@@ -3,7 +3,7 @@ import {
   getClientTransactions,
   getClientBalances,
 } from "@/lib/data/client";
-import { formatDateTime, formatBalance } from "@/lib/utils";
+import { formatDateTime, formatBalance, formatMoney } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import { SignedAmount } from "@/app/components/dashboard/SignedAmount";
 
@@ -153,6 +153,12 @@ export default async function ClientLedgerPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <SignedAmount type={tx.type} amount={tx.amount} />
+                      {tx.type === "fuel_repayment" && tx.service_fee > 0 ? (
+                        <span className="block text-xs text-textdark/50">
+                          Fee {formatMoney(tx.service_fee, 2)} · Total{" "}
+                          {formatMoney(tx.amount + tx.service_fee, 2)}
+                        </span>
+                      ) : null}
                       {tx.points_earned > 0 ? (
                         <span className="block text-xs font-semibold text-success">
                           +{tx.points_earned} pts

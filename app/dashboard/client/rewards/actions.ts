@@ -44,3 +44,83 @@ export async function redeemPoints(
 
   return result;
 }
+
+export type ClaimFreeRewardResult = {
+  ok: boolean;
+  error?: string;
+  claim_id?: string;
+  claim_status?: string;
+  voucher_code?: string | null;
+};
+
+export async function claimFreeReward(
+  rewardId: string
+): Promise<ClaimFreeRewardResult> {
+  const profile = await requireClient();
+
+  if (!rewardId) {
+    return { ok: false, error: "Reward is required." };
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("claim_free_reward", {
+    p_driver_id: profile.id,
+    p_reward_id: rewardId,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const result = data as ClaimFreeRewardResult | null;
+  if (!result) {
+    return { ok: false, error: "Could not claim reward." };
+  }
+
+  revalidatePath("/dashboard/client/rewards");
+  revalidatePath("/dashboard/client");
+  revalidatePath("/dashboard/admin/rewards");
+
+  return result;
+}
+
+export type RedeemStreakMilestoneResult = {
+  ok: boolean;
+  error?: string;
+  points_awarded?: number;
+  streak_cycle?: number;
+};
+
+export async function redeemStreakMilestone(
+  milestoneWeeks: number
+): Promise<RedeemStreakMilestoneResult> {
+  const profile = await requireClient();
+
+  if (!Number.isInteger(milestoneWeeks) || milestoneWeeks <= 0) {
+    return { ok: false, error: "Invalid milestone." };
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("redeem_streak_milestone", {
+    p_driver_id: profile.id,
+    p_milestone_weeks: milestoneWeeks,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const result = data as RedeemStreakMilestoneResult | null;
+  if (!result) {
+    return { ok: false, error: "Could not redeem this milestone." };
+  }
+
+  if (result.ok) {
+    revalidatePath("/dashboard/client/rewards");
+    revalidatePath("/dashboard/client");
+    revalidatePath("/dashboard/admin/drivers");
+    revalidatePath(`/dashboard/admin/drivers/${profile.id}`);
+  }
+
+  return result;
+}

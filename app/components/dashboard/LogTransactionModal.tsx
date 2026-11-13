@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { logTransaction } from "@/app/dashboard/admin/transactions/actions";
 import {
   TRANSACTION_TYPES,
@@ -26,6 +26,7 @@ const labelClass = "block text-sm font-semibold text-textdark mb-1.5";
 export type LogTransactionDriverInfo = {
   phone: string | null;
   email: string | null;
+  driver_status: string;
   driver_balance: number;
   weekly_fuel_limit: number;
   weekly_fuel_issued: number;
@@ -66,6 +67,7 @@ export function LogTransactionModal({
   const [amount, setAmount] = useState<string>("");
   const [litres, setLitres] = useState<string>("");
   const [pointsEarned, setPointsEarned] = useState<string>("");
+  const [serviceFee, setServiceFee] = useState<string>("");
   const [onTime, setOnTime] = useState(false);
   const [vehicleId, setVehicleId] = useState<string>("");
   const [garageId, setGarageId] = useState<string>("");
@@ -99,6 +101,7 @@ export function LogTransactionModal({
   function handleTypeChange(nextType: TransactionType) {
     setType(nextType);
     setError(null);
+    if (nextType !== "fuel_repayment") setServiceFee("");
     const filtered = garagesForType(nextType, garages);
     const stillValid =
       garageId && filtered.some((g) => g.id === garageId);
@@ -112,6 +115,7 @@ export function LogTransactionModal({
     setAmount("");
     setLitres("");
     setPointsEarned("");
+    setServiceFee("");
     setOnTime(false);
     setVehicleId(vehicles[0]?.id ?? "");
     setGarageId(defaultGarageForType(defaultType));
@@ -131,6 +135,7 @@ export function LogTransactionModal({
     formData.append("amount", amount);
     formData.append("litres", litres);
     formData.append("points_earned", pointsEarned);
+    formData.append("service_fee", serviceFee);
     formData.append("on_time", onTime ? "true" : "false");
     formData.append("vehicle_id", vehicleId);
     formData.append("garage_id", garageId);
@@ -228,6 +233,27 @@ export function LogTransactionModal({
                       </button>
                     </div>
                   ) : null}
+                </div>
+              ) : null}
+              {driver && driver.driver_status !== "active" ? (
+                <div className="flex items-start gap-3 rounded-lg bg-yellow/20 border border-yellow/50 px-4 py-3 text-sm text-textdark">
+                  <AlertTriangle
+                    size={18}
+                    className="mt-0.5 shrink-0 text-textdark/60"
+                  />
+                  <div>
+                    <p className="font-semibold">
+                      This driver&apos;s account is not active.
+                    </p>
+                    <p className="text-textdark/70 mt-1">
+                      Current status:{" "}
+                      <span className="font-medium capitalize">
+                        {driver.driver_status}
+                      </span>
+                      . You can still log this transaction, but the account is
+                      currently inactive.
+                    </p>
+                  </div>
                 </div>
               ) : null}
               <p className="text-sm text-textdark/70">
@@ -402,6 +428,43 @@ export function LogTransactionModal({
                   </div>
                 ) : null}
               </div>
+
+              {type === "fuel_repayment" ? (
+                <div>
+                  <label
+                    htmlFor="transaction_service_fee"
+                    className={labelClass}
+                  >
+                    Service Fee (R){" "}
+                    <span className="font-normal text-textdark/50">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    id="transaction_service_fee"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={serviceFee}
+                    onChange={(e) => setServiceFee(e.target.value)}
+                    className={inputClass}
+                    placeholder="0.00"
+                  />
+                  <div className="mt-2 flex items-center justify-between rounded-lg border border-grey/40 bg-offwhite px-4 py-3 text-sm">
+                    <span className="text-textdark/60">Total Repayment</span>
+                    <span className="font-semibold text-textdark">
+                      {formatMoney(
+                        (Number(amount) || 0) + (Number(serviceFee) || 0),
+                        2
+                      )}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-textdark/50">
+                    The service fee is shown for transparency and does not
+                    change the driver&apos;s balance.
+                  </p>
+                </div>
+              ) : null}
 
               {REPAYMENT_TYPES.includes(type) ? (
                 <label className="flex items-start gap-3 rounded-lg border border-grey/40 bg-offwhite px-4 py-3">

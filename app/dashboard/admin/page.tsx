@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Users, Fuel, Wallet, Percent, AlertTriangle, ShieldAlert, Car, Truck } from "lucide-react";
+import { Users, Fuel, Wallet, Percent, Car, Truck } from "lucide-react";
 import Link from "next/link";
 import {
   getAdminDashboardStats,
@@ -27,7 +27,7 @@ export default async function AdminOverviewPage() {
         A snapshot of your fleet, fuel credit and repayments.
       </p>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
         <KpiCard
           label="Active Drivers"
           value={String(stats.activeDrivers)}
@@ -52,18 +52,6 @@ export default async function AdminOverviewPage() {
           value={`${stats.repaymentRate}%`}
           icon={Percent}
           accent="success"
-        />
-        <KpiCard
-          label="Overdue Accounts"
-          value={String(stats.overdueAccounts)}
-          icon={AlertTriangle}
-          accent="error"
-        />
-        <KpiCard
-          label="Accounts Over Fuel Credit"
-          value={String(stats.accountsOverLimit)}
-          icon={ShieldAlert}
-          accent="yellow"
         />
         <KpiCard
           label="Vehicles Under Management"

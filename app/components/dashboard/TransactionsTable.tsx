@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatMoney } from "@/lib/utils";
 import { TRANSACTION_LABELS } from "@/lib/data/types";
 import type { Transaction } from "@/lib/data/types";
 import { deleteTransaction } from "@/app/dashboard/admin/transactions/actions";
@@ -215,6 +215,12 @@ export function TransactionsTable({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <SignedAmount type={tx.type} amount={tx.amount} />
+                      {tx.type === "fuel_repayment" && tx.service_fee > 0 ? (
+                        <span className="block text-xs text-textdark/50">
+                          Fee {formatMoney(tx.service_fee, 2)} · Total{" "}
+                          {formatMoney(tx.amount + tx.service_fee, 2)}
+                        </span>
+                      ) : null}
                       {tx.points_earned > 0 ? (
                         <span className="block text-xs font-semibold text-success">
                           +{tx.points_earned} pts

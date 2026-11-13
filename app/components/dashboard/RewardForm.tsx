@@ -568,11 +568,17 @@ export function RewardForm({
             <input
               id="publish_at"
               type="datetime-local"
-              required
+              required={status !== "published"}
               value={publishAt}
               onChange={(event) => setPublishAt(event.target.value)}
               className={inputClass}
+              disabled={status === "published"}
             />
+            {status === "published" ? (
+              <p className={helpClass}>
+                Publishing now reveals the reward immediately.
+              </p>
+            ) : null}
           </div>
           <div>
             <label htmlFor="expires_at" className={labelClass}>
@@ -604,6 +610,7 @@ export function RewardForm({
             >
               <option value="draft">Draft</option>
               <option value="scheduled">Scheduled</option>
+              <option value="published">Published (live now)</option>
               <option value="archived">Archived</option>
             </select>
           </div>
